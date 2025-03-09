@@ -1,0 +1,6 @@
+---
+description: Rules for backend code generation
+globs: *.tsx, *.jsx, *.ts, *.js
+alwaysApply: false
+---
+Refer to the [front-end.mdc](mdc:.cursor/rules/front-end.mdc) for generating the backend code. Always try to use node.js for the backend code wherever possible. If not possible, stop and analyze the requirements, and find out some alternative options. Then reply with your suggestions for the back-end logic implementation and ask me for approval.

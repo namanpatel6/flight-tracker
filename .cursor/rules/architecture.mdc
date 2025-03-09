@@ -1,0 +1,10 @@
+---
+description: Rules for the Architecture for Code Generation
+globs: 
+alwaysApply: false
+---
+This document describes the architecture for the app. Follow these rules to ensure the app can be deployed successfully.
+
+1. Simplicity should be at the heart of the architecture. Make sure to keep the architecture as simple as possible. Refer to the [file-structure.mdc](mdc:.cursor/rules/file-structure.mdc) file for generating any required files related to the architecture/deployment of the code. If you have any questions regarding the structure, ask me first before making any code changes.
+
+2. It should scale in case the project becomes more complex down the line.

@@ -1,0 +1,14 @@
+---
+description: Rules for project constraints
+globs: 
+alwaysApply: false
+---
+This is a project that implements a flight tracker what allows me to track flights between any source and destination in the world. The app should allow me to track flights for any collection of sources and destinations.
+
+Here's a quick rundown of the project requirements:
+
+1. Ability to search for flights from any carrier/website.
+2. Ability to create rules/logic for tracking a particular flight search.
+3. Ability to nofity me on the event of a succesfull rule run. The notification system should be flexible enough to support any type of notification, for instance emails, texts, etc.
+4. Ability to delete existing rules and monitor the state of a rule(whether is successfully running or not, any potential errors).
+5. Ability to send detailed information about the flights that match any rules, with links to specific search results/flights that match the rules.

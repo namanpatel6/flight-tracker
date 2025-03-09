@@ -1,0 +1,34 @@
+---
+description: Rules for File Structure for Code Generation
+globs: 
+alwaysApply: false
+---
+This document outlines the recommended file structure for a modern Next.js application using TypeScript, shadcn/ui components, and Tailwind CSS. Each section includes context descriptions to help Cursor understand the purpose of different files and directories.
+
+## Root Directory Structure
+
+/
+├── .github/                    # GitHub-specific configuration for CI/CD workflows
+├── .husky/                     # Git hooks for enforcing code quality before commits
+├── .vscode/                    # VSCode-specific settings for consistent developer experience
+├── app/                        # Next.js App Router directory containing routes and layouts
+├── components/                 # Reusable UI components for the application
+├── config/                     # Configuration files for the application
+├── hooks/                      # Custom React hooks for shared functionality
+├── lib/                        # Utility functions and shared code
+├── providers/                  # React context providers for global state management
+├── public/                     # Static assets served directly by Next.js
+├── scripts/                    # Utility scripts for development and deployment
+├── styles/                     # Global styles and Tailwind configuration
+├── types/                      # TypeScript type definitions and interfaces
+├── .env.example                # Example environment variables file
+├── .eslintrc.json             # ESLint configuration for code quality
+├── .gitignore                  # Specifies files to be ignored by Git
+├── .prettierrc                 # Prettier configuration for code formatting
+├── components.json            # shadcn/ui component configuration
+├── next.config.js             # Next.js configuration
+├── package.json               # Project dependencies and scripts
+├── postcss.config.js          # PostCSS configuration for Tailwind
+├── README.md                  # Project documentation
+├── tailwind.config.js         # Tailwind CSS configuration
+└── tsconfig.json              # TypeScript configuration
