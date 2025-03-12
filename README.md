@@ -25,6 +25,7 @@ A modern flight tracking application that allows users to track flights between 
 - Node.js 18.17 or later
 - npm or yarn
 - AviationStack API key (get one at [aviationstack.com](https://aviationstack.com/))
+- PostgreSQL database
 
 ### Installation
 
@@ -45,6 +46,7 @@ npm install
 NEXT_PUBLIC_AVIATIONSTACK_API_KEY=your_api_key_here
 
 # NextAuth.js Secret
+# Generate with: node -e "console.log(crypto.randomBytes(32).toString('hex'))"
 NEXTAUTH_SECRET=your_nextauth_secret_here
 NEXTAUTH_URL=http://localhost:3000
 
@@ -55,10 +57,21 @@ GITHUB_ID=your_github_id_here
 GITHUB_SECRET=your_github_secret_here
 
 # Database
-DATABASE_URL="postgresql://username:password@localhost:5432/flight_tracker"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/flight_tracker"
 ```
 
-4. Run the development server:
+4. Generate a secure NEXTAUTH_SECRET:
+```bash
+node -e "console.log(crypto.randomBytes(32).toString('hex'))"
+```
+Copy the output and paste it as your NEXTAUTH_SECRET in the `.env.local` file.
+
+5. Set up the database:
+```bash
+npx prisma migrate dev
+```
+
+6. Run the development server:
 ```bash
 npm run dev
 ```
@@ -100,6 +113,15 @@ The application uses NextAuth.js for authentication with the following providers
 - Email/Password (credentials)
 
 To set up OAuth providers, you'll need to create OAuth applications in the respective developer consoles and add the client IDs and secrets to your `.env.local` file.
+
+### About NEXTAUTH_SECRET
+
+The NEXTAUTH_SECRET is a cryptographic key used by NextAuth.js for:
+- Encrypting JWT tokens used for sessions
+- Signing cookies to prevent tampering
+- Securing the overall authentication flow
+
+Always use a strong, randomly generated secret and never commit it to your repository.
 
 ## Development
 
