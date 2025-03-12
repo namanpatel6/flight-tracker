@@ -49,7 +49,7 @@ export default function SignIn() {
   };
 
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
+    <div className="container max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 flex min-h-[calc(100vh-64px)] items-center justify-center py-12">
       <Card className="mx-auto max-w-md w-full">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
@@ -62,8 +62,8 @@ export default function SignIn() {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                {authError === "CredentialsSignin"
-                  ? "Invalid email or password"
+                {authError === "CredentialsSignin" || authError === "Callback"
+                  ? "Authentication failed. Please try again."
                   : authError}
               </AlertDescription>
             </Alert>
@@ -73,7 +73,7 @@ export default function SignIn() {
             variant="outline"
             onClick={() => {
               setIsLoading(true);
-              signIn("google", { callbackUrl });
+              signIn("google", { callbackUrl: "/" });
             }}
             disabled={isLoading}
             className="w-full"

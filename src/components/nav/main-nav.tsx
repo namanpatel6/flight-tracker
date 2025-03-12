@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +15,16 @@ import {
 import { Menu, X, User, LogOut, Home, Search, Bell, Plane } from "lucide-react";
 
 export function MainNav() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Ensure component is mounted to prevent hydration issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -27,8 +34,10 @@ export function MainNav() {
     setIsMenuOpen(false);
   };
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: "/" });
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
+    router.push("/");
+    router.refresh();
   };
 
   const navItems = [
@@ -68,7 +77,7 @@ export function MainNav() {
             </Link>
           ))}
           
-          {session?.user && authenticatedItems.map((item) => (
+          {mounted && status === "authenticated" && session?.user && authenticatedItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -101,7 +110,7 @@ export function MainNav() {
         
         {/* Desktop Auth Buttons */}
         <div className="hidden md:flex items-center space-x-4">
-          {session?.user ? (
+          {mounted && status === "authenticated" && session?.user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -179,7 +188,7 @@ export function MainNav() {
                 </Link>
               ))}
               
-              {session?.user && authenticatedItems.map((item) => (
+              {mounted && status === "authenticated" && session?.user && authenticatedItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -196,7 +205,7 @@ export function MainNav() {
               ))}
               
               <div className="pt-4 border-t">
-                {session?.user ? (
+                {mounted && status === "authenticated" && session?.user ? (
                   <>
                     <div className="flex items-center mb-4">
                       {session.user.image ? (

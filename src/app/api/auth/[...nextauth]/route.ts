@@ -58,7 +58,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/auth/signin",
     signOut: "/auth/signout",
-    error: "/auth/error",
+    error: "/auth/signin",
     newUser: "/auth/signup",
   },
   callbacks: {
@@ -74,11 +74,19 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
   },
   session: {
     strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
 };
 
 const handler = NextAuth(authOptions);
