@@ -26,8 +26,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      {/* 
+        Add suppressHydrationWarning to the body element to prevent 
+        hydration errors from browser extensions like DevTools that 
+        add attributes to the body element
+      */}
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}
+        suppressHydrationWarning
       >
         <AuthProvider>
           <div className="relative flex min-h-screen flex-col">
