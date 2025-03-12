@@ -14,7 +14,14 @@ interface SearchPageProps {
 }
 
 export default function SearchPage({ searchParams }: SearchPageProps) {
-  const hasSearchParams = Object.values(searchParams).some(Boolean);
+  // Safe way to check if we have any search params without using Object methods directly
+  const hasSearchParams = !!(
+    searchParams.flightNumber || 
+    searchParams.airline || 
+    searchParams.departureAirport || 
+    searchParams.arrivalAirport || 
+    searchParams.date
+  );
 
   return (
     <div className="container mx-auto py-10">
