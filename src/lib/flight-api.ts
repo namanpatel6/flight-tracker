@@ -4,6 +4,9 @@ import { Flight, FlightStatus } from "@/types/flight";
 const API_BASE_URL = "http://api.aviationstack.com/v1";
 const API_KEY = process.env.NEXT_PUBLIC_AVIATIONSTACK_API_KEY || "your_api_key_here";
 
+// Counter for generating unique IDs when flight identifiers are missing
+let uniqueIdCounter = 0;
+
 /**
  * Search for flights based on various criteria
  * @param params Search parameters
@@ -50,6 +53,9 @@ export async function searchFlights(params: {
     
     const data = await response.json();
     
+    // Reset counter before processing a new batch of flights
+    uniqueIdCounter = 0;
+    
     // Transform API response to match our Flight type
     return data.data.map((flight: any) => transformApiResponseToFlight(flight));
   } catch (error) {
@@ -78,6 +84,9 @@ export async function getFlightDetails(flightNumber: string): Promise<Flight | n
     }
     
     const data = await response.json();
+    
+    // Reset counter before processing
+    uniqueIdCounter = 0;
     
     // Return the first matching flight or null if none found
     if (data.data && data.data.length > 0) {
@@ -147,8 +156,12 @@ export async function untrackFlight(userId: string, flightId: string): Promise<b
  * @returns Transformed Flight object
  */
 function transformApiResponseToFlight(apiResponse: any): Flight {
+  // Generate a unique ID even if flight identifiers are missing
+  const flightIdentifier = apiResponse.flight.iata || apiResponse.flight.icao || `unknown-${uniqueIdCounter++}`;
+  const flightDate = apiResponse.flight_date || new Date().toISOString().split('T')[0];
+  
   return {
-    id: `${apiResponse.flight.iata || apiResponse.flight.icao}-${apiResponse.flight_date}`,
+    id: `${flightIdentifier}-${flightDate}-${Math.random().toString(36).substring(2, 7)}`,
     flight: {
       iata: apiResponse.flight.iata || null,
       icao: apiResponse.flight.icao || null,
