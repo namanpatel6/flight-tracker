@@ -40,7 +40,7 @@ export default function RootLayout({
             <MainNav />
             <main className="flex-1">{children}</main>
             <footer className="border-t py-6">
-              <div className="container flex flex-col items-center justify-between gap-4 md:flex-row">
+              <div className="container max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-between gap-4 md:flex-row">
                 <p className="text-center text-sm text-muted-foreground md:text-left">
                   &copy; {new Date().getFullYear()} Flight Tracker. All rights reserved.
                 </p>

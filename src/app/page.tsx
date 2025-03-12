@@ -7,7 +7,7 @@ export default function Home() {
     <div className="flex flex-col min-h-[calc(100vh-64px)]">
       {/* Hero Section */}
       <section className="py-12 md:py-24 lg:py-32 bg-gradient-to-b from-background to-muted">
-        <div className="container px-4 md:px-6">
+        <div className="container max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 items-center">
             <div className="space-y-4">
               <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">
@@ -45,7 +45,7 @@ export default function Home() {
 
       {/* Features Section */}
       <section className="py-12 md:py-24 bg-background">
-        <div className="container px-4 md:px-6">
+        <div className="container max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold tracking-tighter">
               Everything you need to stay informed
@@ -91,7 +91,7 @@ export default function Home() {
 
       {/* CTA Section */}
       <section className="py-12 md:py-24 bg-muted">
-        <div className="container px-4 md:px-6">
+        <div className="container max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-center text-center max-w-[800px] mx-auto">
             <h2 className="text-3xl font-bold tracking-tighter mb-4">
               Ready to track your next flight?
