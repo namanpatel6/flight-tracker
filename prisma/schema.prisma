@@ -49,6 +49,8 @@ model User {
   image         String?
   accounts      Account[]
   sessions      Session[]
+  trackedFlights TrackedFlight[]
+  alerts        Alert[]
 }
 
 model VerificationToken {
@@ -57,4 +59,39 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model TrackedFlight {
+  id          String   @id @default(cuid())
+  flightNumber String
+  airline     String
+  departureAirport String
+  arrivalAirport String
+  departureTime DateTime?
+  arrivalTime  DateTime?
+  status      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts      Alert[]
+
+  @@index([userId])
+  @@index([flightNumber])
+}
+
+model Alert {
+  id          String   @id @default(cuid())
+  type        String   // e.g., "DELAY", "GATE_CHANGE", "STATUS_CHANGE"
+  threshold   Int?     // For delay alerts (in minutes)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flightId    String
+  flight      TrackedFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([flightId])
 }
