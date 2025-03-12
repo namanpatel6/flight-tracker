@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate, formatTime, calculateDuration, getStatusDescription } from "@/lib/utils";
+import { formatDate, formatTime, calculateDuration } from "@/lib/utils";
 import { AlertCircle, Bell, BellOff, Plane, Calendar, Clock, MapPin } from "lucide-react";
 import { Alert as AlertType, createAlert, deleteAlert, getUserAlerts } from "@/lib/alerts";
 
@@ -87,7 +87,7 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-2xl font-bold">
-              {flight.airline} {flight.flightNumber}
+              {flight.airline.name} {flight.flight.iata || flight.flight.icao}
             </CardTitle>
             <Button
               variant={isTracking ? "outline" : "default"}
@@ -114,31 +114,66 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
               <div className="text-sm text-muted-foreground">Departure</div>
               <div className="flex items-center space-x-2">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <div className="font-medium">{flight.departureAirport}</div>
+                <div className="font-medium">{flight.departure.airport} ({flight.departure.iata})</div>
               </div>
               <div className="flex items-center space-x-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>{formatDate(flight.departureTime)}</div>
+                <div>{formatDate(flight.departure.scheduled)}</div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatTime(flight.departureTime)}</div>
+                <div>{formatTime(flight.departure.scheduled)}</div>
+                {flight.departure.actual && (
+                  <div className="text-sm text-muted-foreground">
+                    (Actual: {formatTime(flight.departure.actual)})
+                  </div>
+                )}
               </div>
+              {flight.departure.terminal && (
+                <div className="text-sm">
+                  Terminal: <span className="font-medium">{flight.departure.terminal}</span>
+                </div>
+              )}
+              {flight.departure.gate && (
+                <div className="text-sm">
+                  Gate: <span className="font-medium">{flight.departure.gate}</span>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <div className="text-sm text-muted-foreground">Arrival</div>
               <div className="flex items-center space-x-2">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <div className="font-medium">{flight.arrivalAirport}</div>
+                <div className="font-medium">{flight.arrival.airport} ({flight.arrival.iata})</div>
               </div>
               <div className="flex items-center space-x-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>{formatDate(flight.arrivalTime)}</div>
+                <div>{formatDate(flight.arrival.scheduled)}</div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatTime(flight.arrivalTime)}</div>
+                <div>{formatTime(flight.arrival.scheduled)}</div>
+                {flight.arrival.actual && (
+                  <div className="text-sm text-muted-foreground">
+                    (Actual: {formatTime(flight.arrival.actual)})
+                  </div>
+                )}
               </div>
+              {flight.arrival.terminal && (
+                <div className="text-sm">
+                  Terminal: <span className="font-medium">{flight.arrival.terminal}</span>
+                </div>
+              )}
+              {flight.arrival.gate && (
+                <div className="text-sm">
+                  Gate: <span className="font-medium">{flight.arrival.gate}</span>
+                </div>
+              )}
+              {flight.arrival.baggage && (
+                <div className="text-sm">
+                  Baggage: <span className="font-medium">{flight.arrival.baggage}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -148,19 +183,22 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
                 <Plane className="h-4 w-4 text-muted-foreground" />
                 <div className="text-sm font-medium">Flight Duration</div>
               </div>
-              <div>{calculateDuration(flight.departureTime, flight.arrivalTime)}</div>
+              <div>{calculateDuration(flight.departure.scheduled, flight.arrival.scheduled)}</div>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="text-sm font-medium">Status</div>
               </div>
               <div className={`font-medium ${
-                flight.status === "ON_TIME" ? "text-green-600" :
-                flight.status === "DELAYED" ? "text-yellow-600" :
-                flight.status === "CANCELLED" ? "text-red-600" :
-                "text-blue-600"
+                flight.flight_status === "active" ? "text-green-600" :
+                flight.flight_status === "scheduled" ? "text-blue-600" :
+                flight.flight_status === "landed" ? "text-green-600" :
+                flight.flight_status === "cancelled" ? "text-red-600" :
+                flight.flight_status === "incident" ? "text-red-600" :
+                flight.flight_status === "diverted" ? "text-yellow-600" :
+                "text-gray-600"
               }`}>
-                {getStatusDescription(flight.status)}
+                {flight.flight_status.charAt(0).toUpperCase() + flight.flight_status.slice(1)}
               </div>
             </div>
           </div>
@@ -171,30 +209,32 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="details">Flight Details</TabsTrigger>
           <TabsTrigger value="aircraft">Aircraft</TabsTrigger>
-          <TabsTrigger value="history">Flight History</TabsTrigger>
+          {flight.live && <TabsTrigger value="live">Live Tracking</TabsTrigger>}
         </TabsList>
         <TabsContent value="details" className="space-y-4">
           <Card>
             <CardContent className="pt-6">
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Terminal</dt>
-                  <dd className="mt-1">{flight.terminal || "Not available"}</dd>
+                  <dt className="text-sm font-medium text-muted-foreground">Airline</dt>
+                  <dd className="mt-1">{flight.airline.name} ({flight.airline.iata})</dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Gate</dt>
-                  <dd className="mt-1">{flight.gate || "Not available"}</dd>
+                  <dt className="text-sm font-medium text-muted-foreground">Flight Number</dt>
+                  <dd className="mt-1">{flight.flight.iata || flight.flight.icao}</dd>
                 </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Baggage Claim</dt>
-                  <dd className="mt-1">{flight.baggageClaim || "Not available"}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Seat Map</dt>
-                  <dd className="mt-1">
-                    <Button variant="link" className="p-0">View Seat Map</Button>
-                  </dd>
-                </div>
+                {flight.departure.delay && (
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Departure Delay</dt>
+                    <dd className="mt-1">{flight.departure.delay} minutes</dd>
+                  </div>
+                )}
+                {flight.arrival.delay && (
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Arrival Delay</dt>
+                    <dd className="mt-1">{flight.arrival.delay} minutes</dd>
+                  </div>
+                )}
               </dl>
             </CardContent>
           </Card>
@@ -203,35 +243,61 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
           <Card>
             <CardContent className="pt-6">
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Aircraft Type</dt>
-                  <dd className="mt-1">{flight.aircraft || "Boeing 737-800"}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Registration</dt>
-                  <dd className="mt-1">N12345</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Age</dt>
-                  <dd className="mt-1">7.5 years</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Seating Capacity</dt>
-                  <dd className="mt-1">189 passengers</dd>
-                </div>
+                {flight.aircraft?.model && (
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Aircraft Type</dt>
+                    <dd className="mt-1">{flight.aircraft.model}</dd>
+                  </div>
+                )}
+                {flight.aircraft?.registration && (
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Registration</dt>
+                    <dd className="mt-1">{flight.aircraft.registration}</dd>
+                  </div>
+                )}
+                {!flight.aircraft?.model && !flight.aircraft?.registration && (
+                  <div className="col-span-2 text-center text-muted-foreground">
+                    Aircraft information is not available for this flight.
+                  </div>
+                )}
               </dl>
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center text-muted-foreground">
-                Flight history data is not available for this flight.
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {flight.live && (
+          <TabsContent value="live" className="space-y-4">
+            <Card>
+              <CardContent className="pt-6">
+                <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Last Updated</dt>
+                    <dd className="mt-1">{new Date(flight.live.updated).toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Altitude</dt>
+                    <dd className="mt-1">{flight.live.altitude} feet</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Speed</dt>
+                    <dd className="mt-1">{flight.live.speed_horizontal} knots</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Direction</dt>
+                    <dd className="mt-1">{flight.live.direction}°</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Position</dt>
+                    <dd className="mt-1">Lat: {flight.live.latitude}, Long: {flight.live.longitude}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Status</dt>
+                    <dd className="mt-1">{flight.live.is_ground ? 'On Ground' : 'In Air'}</dd>
+                  </div>
+                </dl>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

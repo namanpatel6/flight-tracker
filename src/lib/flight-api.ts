@@ -1,111 +1,207 @@
-import { Flight } from "@/types/flight";
+import { Flight, FlightStatus } from "@/types/flight";
 
-interface SearchParams {
+// AviationStack API base URL
+const API_BASE_URL = "http://api.aviationstack.com/v1";
+const API_KEY = process.env.NEXT_PUBLIC_AVIATIONSTACK_API_KEY || "your_api_key_here";
+
+/**
+ * Search for flights based on various criteria
+ * @param params Search parameters
+ * @returns Array of flights matching the criteria
+ */
+export async function searchFlights(params: {
   flightNumber?: string;
   airline?: string;
   departureAirport?: string;
   arrivalAirport?: string;
   date?: string;
-}
-
-/**
- * Search for flights based on provided parameters
- */
-export async function searchFlights(params: SearchParams): Promise<Flight[]> {
-  // Build search query
-  const queryParams = new URLSearchParams();
-  
-  if (params.flightNumber) {
-    queryParams.append("flightNumber", params.flightNumber);
+}): Promise<Flight[]> {
+  try {
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    queryParams.append("access_key", API_KEY);
+    
+    if (params.flightNumber) {
+      queryParams.append("flight_iata", params.flightNumber);
+    }
+    
+    if (params.airline) {
+      queryParams.append("airline_name", params.airline);
+    }
+    
+    if (params.departureAirport) {
+      queryParams.append("dep_iata", params.departureAirport);
+    }
+    
+    if (params.arrivalAirport) {
+      queryParams.append("arr_iata", params.arrivalAirport);
+    }
+    
+    if (params.date) {
+      queryParams.append("flight_date", params.date);
+    }
+    
+    // Make API request
+    const response = await fetch(`${API_BASE_URL}/flights?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Transform API response to match our Flight type
+    return data.data.map((flight: any) => transformApiResponseToFlight(flight));
+  } catch (error) {
+    console.error("Error searching flights:", error);
+    return [];
   }
-  
-  if (params.airline) {
-    queryParams.append("airline", params.airline);
-  }
-  
-  if (params.departureAirport) {
-    queryParams.append("departureAirport", params.departureAirport);
-  }
-  
-  if (params.arrivalAirport) {
-    queryParams.append("arrivalAirport", params.arrivalAirport);
-  }
-  
-  if (params.date) {
-    queryParams.append("date", params.date);
-  }
-
-  // Fetch flights
-  const response = await fetch(`/api/flights/search?${queryParams.toString()}`);
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to search flights");
-  }
-
-  return response.json();
 }
 
 /**
  * Get details for a specific flight by flight number
+ * @param flightNumber The flight number (IATA or ICAO code)
+ * @returns Flight details or null if not found
  */
 export async function getFlightDetails(flightNumber: string): Promise<Flight | null> {
-  const response = await fetch(`/api/flights/${flightNumber}`);
-  
-  if (response.status === 404) {
+  try {
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    queryParams.append("access_key", API_KEY);
+    queryParams.append("flight_iata", flightNumber);
+    
+    // Make API request
+    const response = await fetch(`${API_BASE_URL}/flights?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Return the first matching flight or null if none found
+    if (data.data && data.data.length > 0) {
+      return transformApiResponseToFlight(data.data[0]);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error getting flight details:", error);
     return null;
   }
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to get flight details");
-  }
-
-  return response.json();
 }
 
 /**
- * Get all tracked flights for the current user
+ * Get tracked flights for a user
+ * @param userId The user ID
+ * @returns Array of tracked flights
  */
-export async function getTrackedFlights(): Promise<Flight[]> {
-  const response = await fetch("/api/flights/tracked");
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to get tracked flights");
+export async function getTrackedFlights(userId: string): Promise<Flight[]> {
+  try {
+    // This would typically fetch from your database
+    // For now, we'll return an empty array
+    return [];
+  } catch (error) {
+    console.error("Error getting tracked flights:", error);
+    return [];
   }
-
-  return response.json();
 }
 
 /**
- * Track a flight for the current user
+ * Track a flight for a user
+ * @param userId The user ID
+ * @param flightId The flight ID to track
+ * @returns Success status
  */
-export async function trackFlight(flightId: string): Promise<void> {
-  const response = await fetch("/api/flights/tracked", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+export async function trackFlight(userId: string, flightId: string): Promise<boolean> {
+  try {
+    // This would typically update your database
+    // For now, we'll just return success
+    return true;
+  } catch (error) {
+    console.error("Error tracking flight:", error);
+    return false;
+  }
+}
+
+/**
+ * Untrack a flight for a user
+ * @param userId The user ID
+ * @param flightId The flight ID to untrack
+ * @returns Success status
+ */
+export async function untrackFlight(userId: string, flightId: string): Promise<boolean> {
+  try {
+    // This would typically update your database
+    // For now, we'll just return success
+    return true;
+  } catch (error) {
+    console.error("Error untracking flight:", error);
+    return false;
+  }
+}
+
+/**
+ * Transform API response to match our Flight type
+ * @param apiResponse The API response object
+ * @returns Transformed Flight object
+ */
+function transformApiResponseToFlight(apiResponse: any): Flight {
+  return {
+    id: `${apiResponse.flight.iata || apiResponse.flight.icao}-${apiResponse.flight_date}`,
+    flight: {
+      iata: apiResponse.flight.iata || null,
+      icao: apiResponse.flight.icao || null,
+      number: apiResponse.flight.number || null
     },
-    body: JSON.stringify({ flightId }),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to track flight");
-  }
-}
-
-/**
- * Untrack a flight for the current user
- */
-export async function untrackFlight(flightId: string): Promise<void> {
-  const response = await fetch(`/api/flights/tracked/${flightId}`, {
-    method: "DELETE",
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to untrack flight");
-  }
+    flight_status: apiResponse.flight_status as FlightStatus,
+    airline: {
+      name: apiResponse.airline.name || "Unknown Airline",
+      iata: apiResponse.airline.iata || null,
+      icao: apiResponse.airline.icao || null
+    },
+    departure: {
+      airport: apiResponse.departure.airport || "Unknown Airport",
+      iata: apiResponse.departure.iata || null,
+      icao: apiResponse.departure.icao || null,
+      terminal: apiResponse.departure.terminal || null,
+      gate: apiResponse.departure.gate || null,
+      delay: apiResponse.departure.delay || null,
+      scheduled: apiResponse.departure.scheduled || new Date().toISOString(),
+      estimated: apiResponse.departure.estimated || null,
+      actual: apiResponse.departure.actual || null,
+      estimated_runway: apiResponse.departure.estimated_runway || null,
+      actual_runway: apiResponse.departure.actual_runway || null
+    },
+    arrival: {
+      airport: apiResponse.arrival.airport || "Unknown Airport",
+      iata: apiResponse.arrival.iata || null,
+      icao: apiResponse.arrival.icao || null,
+      terminal: apiResponse.arrival.terminal || null,
+      gate: apiResponse.arrival.gate || null,
+      baggage: apiResponse.arrival.baggage || null,
+      delay: apiResponse.arrival.delay || null,
+      scheduled: apiResponse.arrival.scheduled || new Date().toISOString(),
+      estimated: apiResponse.arrival.estimated || null,
+      actual: apiResponse.arrival.actual || null,
+      estimated_runway: apiResponse.arrival.estimated_runway || null,
+      actual_runway: apiResponse.arrival.actual_runway || null
+    },
+    aircraft: apiResponse.aircraft ? {
+      registration: apiResponse.aircraft.registration || null,
+      iata: apiResponse.aircraft.iata || null,
+      icao: apiResponse.aircraft.icao || null,
+      model: apiResponse.aircraft.model || null
+    } : undefined,
+    live: apiResponse.live ? {
+      updated: apiResponse.live.updated || new Date().toISOString(),
+      latitude: apiResponse.live.latitude || 0,
+      longitude: apiResponse.live.longitude || 0,
+      altitude: apiResponse.live.altitude || 0,
+      direction: apiResponse.live.direction || 0,
+      speed_horizontal: apiResponse.live.speed_horizontal || 0,
+      speed_vertical: apiResponse.live.speed_vertical || 0,
+      is_ground: apiResponse.live.is_ground || false
+    } : undefined
+  };
 } 

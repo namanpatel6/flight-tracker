@@ -1,18 +1,55 @@
-export type FlightStatus = 'SCHEDULED' | 'ON_TIME' | 'DELAYED' | 'DEPARTED' | 'ARRIVED' | 'CANCELLED' | 'DIVERTED';
+export type FlightStatus = 'scheduled' | 'active' | 'landed' | 'cancelled' | 'incident' | 'diverted' | 'unknown';
+
+export interface Airline {
+  name: string;
+  iata: string;
+  icao: string;
+}
+
+export interface FlightIdentifier {
+  iata: string;
+  icao: string;
+  number: string;
+}
+
+export interface AirportInfo {
+  airport: string;
+  iata: string;
+  icao: string;
+  terminal?: string;
+  gate?: string;
+  baggage?: string;
+  delay?: number;
+  scheduled: string;
+  estimated?: string;
+  actual?: string;
+  estimated_runway?: string;
+  actual_runway?: string;
+}
+
+export interface Aircraft {
+  registration?: string;
+  iata?: string;
+  icao?: string;
+  model?: string;
+}
 
 export interface Flight {
   id: string;
-  flightNumber: string;
-  airline: string;
-  departureAirport: string;
-  arrivalAirport: string;
-  departureTime: string;
-  arrivalTime: string;
-  status: FlightStatus;
-  terminal?: string;
-  gate?: string;
-  baggageClaim?: string;
-  aircraft?: string;
-  createdAt: string;
-  updatedAt: string;
+  flight: FlightIdentifier;
+  flight_status: FlightStatus;
+  airline: Airline;
+  departure: AirportInfo;
+  arrival: AirportInfo;
+  aircraft?: Aircraft;
+  live?: {
+    updated: string;
+    latitude: number;
+    longitude: number;
+    altitude: number;
+    direction: number;
+    speed_horizontal: number;
+    speed_vertical: number;
+    is_ground: boolean;
+  };
 } 

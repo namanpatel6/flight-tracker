@@ -7,6 +7,7 @@ import { Flight } from "@/types/flight";
 import { FlightCard } from "@/components/flight-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { searchFlights, getTrackedFlights, trackFlight, untrackFlight } from "@/lib/flight-api";
 
 interface SearchResultsProps {
   searchParams: {
@@ -16,31 +17,6 @@ interface SearchResultsProps {
     arrivalAirport?: string;
     date?: string;
   };
-}
-
-// Mock function for searchFlights until the real API is available
-async function searchFlights(params: any): Promise<Flight[]> {
-  // This is a placeholder that would be replaced with the actual implementation
-  console.log("Searching flights with params:", params);
-  return [];
-}
-
-// Mock function for getTrackedFlights until the real API is available
-async function getTrackedFlights(): Promise<Flight[]> {
-  // This is a placeholder that would be replaced with the actual implementation
-  return [];
-}
-
-// Mock function for trackFlight until the real API is available
-async function trackFlight(flightId: string): Promise<void> {
-  // This is a placeholder that would be replaced with the actual implementation
-  console.log("Tracking flight:", flightId);
-}
-
-// Mock function for untrackFlight until the real API is available
-async function untrackFlight(flightId: string): Promise<void> {
-  // This is a placeholder that would be replaced with the actual implementation
-  console.log("Untracking flight:", flightId);
 }
 
 export function SearchResults({ searchParams }: SearchResultsProps) {
@@ -73,10 +49,10 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
 
   // Fetch tracked flights if user is logged in
   useEffect(() => {
-    if (session?.user) {
+    if (session?.user?.id) {
       const fetchTrackedFlights = async () => {
         try {
-          const trackedFlights = await getTrackedFlights();
+          const trackedFlights = await getTrackedFlights(session.user.id);
           const trackedIds = new Set<string>(trackedFlights.map((flight: Flight) => flight.id));
           setTrackedFlightIds(trackedIds);
         } catch (err) {
@@ -89,14 +65,16 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
   }, [session]);
 
   const handleTrackFlight = async (flightId: string) => {
-    if (!session?.user) {
+    if (!session?.user?.id) {
       router.push("/api/auth/signin");
       return;
     }
 
     try {
-      await trackFlight(flightId);
-      setTrackedFlightIds(prev => new Set([...prev, flightId]));
+      const success = await trackFlight(session.user.id, flightId);
+      if (success) {
+        setTrackedFlightIds(prev => new Set([...prev, flightId]));
+      }
     } catch (err) {
       console.error("Error tracking flight:", err);
       setError("Failed to track flight. Please try again.");
@@ -104,13 +82,17 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
   };
 
   const handleUntrackFlight = async (flightId: string) => {
+    if (!session?.user?.id) return;
+    
     try {
-      await untrackFlight(flightId);
-      setTrackedFlightIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(flightId);
-        return newSet;
-      });
+      const success = await untrackFlight(session.user.id, flightId);
+      if (success) {
+        setTrackedFlightIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(flightId);
+          return newSet;
+        });
+      }
     } catch (err) {
       console.error("Error untracking flight:", err);
       setError("Failed to untrack flight. Please try again.");
