@@ -1,114 +1,83 @@
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-const prisma = new PrismaClient();
+export type AlertType = "STATUS_CHANGE" | "DELAY" | "GATE_CHANGE" | "DEPARTURE" | "ARRIVAL";
 
-// Alert types
-export const AlertType = {
-  DELAY: "DELAY",
-  GATE_CHANGE: "GATE_CHANGE",
-  STATUS_CHANGE: "STATUS_CHANGE",
-} as const;
+export interface Alert {
+  id: string;
+  userId: string;
+  flightId: string;
+  type: AlertType;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
-export type AlertType = typeof AlertType[keyof typeof AlertType];
-
-// Alert creation schema
-export const createAlertSchema = z.object({
-  type: z.enum([AlertType.DELAY, AlertType.GATE_CHANGE, AlertType.STATUS_CHANGE]),
-  threshold: z.number().optional(),
+const createAlertSchema = z.object({
   flightId: z.string(),
+  type: z.enum(["STATUS_CHANGE", "DELAY", "GATE_CHANGE", "DEPARTURE", "ARRIVAL"]),
+  active: z.boolean().default(true),
 });
 
 export type CreateAlertInput = z.infer<typeof createAlertSchema>;
 
-/**
- * Create an alert for a tracked flight
- */
-export async function createAlert(userId: string, data: CreateAlertInput) {
-  // Verify the flight belongs to the user
-  const flight = await prisma.trackedFlight.findFirst({
-    where: {
-      id: data.flightId,
-      userId,
+// Function to create a new alert
+export async function createAlert(data: CreateAlertInput): Promise<Alert> {
+  const validatedData = createAlertSchema.parse(data);
+  
+  const response = await fetch("/api/alerts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify(validatedData),
   });
 
-  if (!flight) {
-    throw new Error("Flight not found or you don't have permission to create an alert for it");
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to create alert");
   }
 
-  // Create the alert
-  return prisma.alert.create({
-    data: {
-      type: data.type,
-      threshold: data.threshold,
-      userId,
-      flightId: data.flightId,
-    },
-  });
+  return response.json();
 }
 
-/**
- * Get all alerts for a user
- */
-export async function getAlertsForUser(userId: string) {
-  return prisma.alert.findMany({
-    where: {
-      userId,
-    },
-    include: {
-      flight: true,
-    },
-  });
-}
+// Function to get all alerts for the current user
+export async function getUserAlerts(): Promise<Alert[]> {
+  const response = await fetch("/api/alerts");
 
-/**
- * Toggle alert active status
- */
-export async function toggleAlertStatus(id: string, userId: string) {
-  // Verify the alert belongs to the user
-  const alert = await prisma.alert.findFirst({
-    where: {
-      id,
-      userId,
-    },
-  });
-
-  if (!alert) {
-    throw new Error("Alert not found or you don't have permission to modify it");
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to fetch alerts");
   }
 
-  // Toggle the status
-  return prisma.alert.update({
-    where: {
-      id,
-    },
-    data: {
-      isActive: !alert.isActive,
-    },
-  });
+  return response.json();
 }
 
-/**
- * Delete an alert
- */
-export async function deleteAlert(id: string, userId: string) {
-  // Verify the alert belongs to the user
-  const alert = await prisma.alert.findFirst({
-    where: {
-      id,
-      userId,
+// Function to toggle an alert's active status
+export async function toggleAlert(id: string, active: boolean): Promise<Alert> {
+  const response = await fetch(`/api/alerts/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({ active }),
   });
 
-  if (!alert) {
-    throw new Error("Alert not found or you don't have permission to delete it");
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to update alert");
   }
 
-  // Delete the alert
-  return prisma.alert.delete({
-    where: {
-      id,
-    },
+  return response.json();
+}
+
+// Function to delete an alert
+export async function deleteAlert(id: string): Promise<void> {
+  const response = await fetch(`/api/alerts/${id}`, {
+    method: "DELETE",
   });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to delete alert");
+  }
 } 

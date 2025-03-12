@@ -1,125 +1,95 @@
+"use client";
+
 import Link from "next/link";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Flight } from "@/types/flight";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { formatDate, formatTime, calculateDuration } from "@/lib/utils";
-import { Plane, Clock, Calendar, ArrowRight } from "lucide-react";
-import { Flight } from "@/lib/flight-api";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { formatDate, formatTime, calculateDuration, getStatusDescription } from "@/lib/utils";
+import { Bell, BellOff, Plane, ArrowRight, Calendar, Clock } from "lucide-react";
 
 interface FlightCardProps {
   flight: Flight;
-  isTracked?: boolean;
-  onTrack?: (flightId: string) => void;
-  onUntrack?: (flightId: string) => void;
-  isLoading?: boolean;
+  isTracked: boolean;
+  onTrack: () => void;
+  onUntrack: () => void;
 }
 
-export function FlightCard({
-  flight,
-  isTracked = false,
-  onTrack,
-  onUntrack,
-  isLoading = false,
-}: FlightCardProps) {
-  // Determine status badge color
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "scheduled":
-        return "bg-blue-100 text-blue-800";
-      case "on time":
-        return "bg-green-100 text-green-800";
-      case "delayed":
-        return "bg-yellow-100 text-yellow-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
-      case "landed":
-        return "bg-purple-100 text-purple-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
+export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCardProps) {
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-0">
         <div className="p-6">
-          <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold">{flight.airline}</h3>
-              <p className="text-sm text-muted-foreground">Flight {flight.flightNumber}</p>
+              <h3 className="text-lg font-semibold">
+                {flight.airline} {flight.flightNumber}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {formatDate(flight.departureTime)}
+              </p>
             </div>
-            <Badge className={getStatusColor(flight.status)}>{flight.status}</Badge>
+            <div className={`text-sm font-medium px-3 py-1 rounded-full ${
+              flight.status === "ON_TIME" ? "bg-green-100 text-green-800" :
+              flight.status === "DELAYED" ? "bg-yellow-100 text-yellow-800" :
+              flight.status === "CANCELLED" ? "bg-red-100 text-red-800" :
+              "bg-blue-100 text-blue-800"
+            }`}>
+              {getStatusDescription(flight.status)}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Departure */}
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Departure</p>
-              <p className="font-medium">{flight.departureAirport}</p>
-              <div className="flex items-center text-sm">
-                <Clock className="mr-1 h-3 w-3" />
-                {formatTime(flight.departureTime)}
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
+            <div className="md:col-span-3 space-y-1">
+              <div className="text-sm text-muted-foreground">Departure</div>
+              <div className="flex items-center space-x-2">
+                <div className="font-medium">{flight.departureAirport}</div>
               </div>
-              <div className="flex items-center text-sm">
-                <Calendar className="mr-1 h-3 w-3" />
-                {formatDate(flight.departureTime)}
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>{formatTime(flight.departureTime)}</div>
               </div>
             </div>
 
-            {/* Flight Duration */}
-            <div className="flex flex-col items-center justify-center">
-              <div className="text-sm text-muted-foreground mb-1">
-                {calculateDuration(flight.departureTime, flight.arrivalTime)}
-              </div>
-              <div className="relative w-full flex items-center justify-center">
-                <div className="h-[1px] bg-gray-200 w-full"></div>
-                <div className="absolute">
-                  <Plane className="h-4 w-4 text-primary" />
-                </div>
-              </div>
-              <div className="flex justify-between w-full mt-1">
-                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <div className="md:col-span-1 flex justify-center">
+              <div className="relative">
+                <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-muted"></div>
+                <ArrowRight className="relative z-10 text-primary" />
               </div>
             </div>
 
-            {/* Arrival */}
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Arrival</p>
-              <p className="font-medium">{flight.arrivalAirport}</p>
-              <div className="flex items-center text-sm">
-                <Clock className="mr-1 h-3 w-3" />
-                {formatTime(flight.arrivalTime)}
+            <div className="md:col-span-3 space-y-1">
+              <div className="text-sm text-muted-foreground">Arrival</div>
+              <div className="flex items-center space-x-2">
+                <div className="font-medium">{flight.arrivalAirport}</div>
               </div>
-              <div className="flex items-center text-sm">
-                <Calendar className="mr-1 h-3 w-3" />
-                {formatDate(flight.arrivalTime)}
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>{formatTime(flight.arrivalTime)}</div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4 flex items-center text-sm text-muted-foreground">
+            <Plane className="h-4 w-4 mr-2" />
+            <span>Duration: {calculateDuration(flight.departureTime, flight.arrivalTime)}</span>
           </div>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between p-4 pt-0 border-t">
+      <CardFooter className="bg-muted/50 p-4 flex justify-between">
         <Link href={`/flights/${flight.flightNumber}`} passHref>
-          <Button variant="outline">View Details</Button>
+          <Button variant="secondary">View Details</Button>
         </Link>
         
-        {onTrack && onUntrack && (
-          isTracked ? (
-            <Button 
-              variant="destructive" 
-              onClick={() => onUntrack(flight.id)} 
-              disabled={isLoading}
-            >
-              {isLoading ? "Loading..." : "Untrack"}
-            </Button>
-          ) : (
-            <Button 
-              onClick={() => onTrack(flight.id)} 
-              disabled={isLoading}
-            >
-              {isLoading ? "Loading..." : "Track Flight"}
-            </Button>
-          )
+        {isTracked ? (
+          <Button variant="outline" onClick={onUntrack}>
+            <BellOff className="h-4 w-4 mr-2" />
+            Untrack
+          </Button>
+        ) : (
+          <Button onClick={onTrack}>
+            <Bell className="h-4 w-4 mr-2" />
+            Track
+          </Button>
         )}
       </CardFooter>
     </Card>
