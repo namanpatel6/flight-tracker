@@ -47,7 +47,7 @@ export function FlightSearchForm() {
   const [children, setChildren] = useState("0");
   const [infants, setInfants] = useState("0");
   const [directFlightsOnly, setDirectFlightsOnly] = useState(false);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("any");
   
   // Multi-city routes (for future implementation)
   const [multiCityRoutes, setMultiCityRoutes] = useState([
@@ -128,7 +128,7 @@ export function FlightSearchForm() {
       if (children) searchParams.append("children", children);
       if (infants) searchParams.append("infants", infants);
       if (directFlightsOnly) searchParams.append("directFlightsOnly", "true");
-      if (status) searchParams.append("status", status);
+      if (status && status !== "any") searchParams.append("status", status);
     }
 
     // Navigate to search results
@@ -588,7 +588,7 @@ export function FlightSearchForm() {
                       <SelectValue placeholder="Any status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any status</SelectItem>
+                      <SelectItem value="any">Any status</SelectItem>
                       {flightStatuses.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
