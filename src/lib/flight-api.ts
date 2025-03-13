@@ -8,6 +8,96 @@ const API_KEY = process.env.NEXT_PUBLIC_AVIATIONSTACK_API_KEY || "your_api_key_h
 let uniqueIdCounter = 0;
 
 /**
+ * Fetch airports from the AviationStack API
+ * @returns Array of airports formatted for ComboboxOption
+ */
+export async function fetchAirports() {
+  try {
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    queryParams.append("access_key", API_KEY);
+    
+    // Make API request
+    const response = await fetch(`${API_BASE_URL}/airports?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Transform API response to match our Airport type
+    return data.data
+      .filter((airport: any) => airport.iata_code) // Only include airports with IATA codes
+      .map((airport: any) => ({
+        value: airport.iata_code.toLowerCase(),
+        label: airport.airport_name,
+        code: airport.iata_code
+      }));
+  } catch (error) {
+    console.error("Error fetching airports:", error);
+    // Return a default list of popular airports as fallback
+    return [
+      { value: "jfk", label: "John F. Kennedy International Airport", code: "JFK" },
+      { value: "lax", label: "Los Angeles International Airport", code: "LAX" },
+      { value: "lhr", label: "London Heathrow Airport", code: "LHR" },
+      { value: "cdg", label: "Paris Charles de Gaulle Airport", code: "CDG" },
+      { value: "dxb", label: "Dubai International Airport", code: "DXB" },
+      { value: "hnd", label: "Tokyo Haneda Airport", code: "HND" },
+      { value: "pek", label: "Beijing Capital International Airport", code: "PEK" },
+      { value: "syd", label: "Sydney Airport", code: "SYD" },
+      { value: "sin", label: "Singapore Changi Airport", code: "SIN" },
+      { value: "fra", label: "Frankfurt Airport", code: "FRA" }
+    ];
+  }
+}
+
+/**
+ * Fetch airlines from the AviationStack API
+ * @returns Array of airlines formatted for ComboboxOption
+ */
+export async function fetchAirlines() {
+  try {
+    // Build query parameters
+    const queryParams = new URLSearchParams();
+    queryParams.append("access_key", API_KEY);
+    
+    // Make API request
+    const response = await fetch(`${API_BASE_URL}/airlines?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Transform API response to match our Airline type
+    return data.data
+      .filter((airline: any) => airline.iata_code) // Only include airlines with IATA codes
+      .map((airline: any) => ({
+        value: airline.iata_code.toLowerCase(),
+        label: airline.airline_name,
+        code: airline.iata_code
+      }));
+  } catch (error) {
+    console.error("Error fetching airlines:", error);
+    // Return a default list of popular airlines as fallback
+    return [
+      { value: "aal", label: "American Airlines", code: "AAL" },
+      { value: "dal", label: "Delta Air Lines", code: "DAL" },
+      { value: "ual", label: "United Airlines", code: "UAL" },
+      { value: "baw", label: "British Airways", code: "BAW" },
+      { value: "afr", label: "Air France", code: "AFR" },
+      { value: "dlh", label: "Lufthansa", code: "DLH" },
+      { value: "uae", label: "Emirates", code: "UAE" },
+      { value: "qtr", label: "Qatar Airways", code: "QTR" },
+      { value: "cpa", label: "Cathay Pacific", code: "CPA" },
+      { value: "sia", label: "Singapore Airlines", code: "SIA" }
+    ];
+  }
+}
+
+/**
  * Search for flights based on various criteria
  * @param params Search parameters
  * @returns Array of flights matching the criteria

@@ -1,13 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FlightSearchParams } from "@/lib/flight-api";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { fetchAirports, fetchAirlines } from "@/lib/flight-api";
+
+type Airport = {
+  value: string;
+  label: string;
+  code: string;
+};
+
+type Airline = {
+  value: string;
+  label: string;
+  code: string;
+};
 
 export function FlightSearchForm() {
   const router = useRouter();
@@ -19,6 +35,49 @@ export function FlightSearchForm() {
   const [date, setDate] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // New state for airports and airlines data
+  const [airports, setAirports] = useState<Airport[]>([]);
+  const [airlines, setAirlines] = useState<Airline[]>([]);
+  const [airportsLoading, setAirportsLoading] = useState(false);
+  const [airlinesLoading, setAirlinesLoading] = useState(false);
+  
+  // State for open/closed popover states
+  const [departureOpen, setDepartureOpen] = useState(false);
+  const [arrivalOpen, setArrivalOpen] = useState(false);
+  const [airlineOpen, setAirlineOpen] = useState(false);
+
+  // Fetch airports and airlines on component mount
+  useEffect(() => {
+    async function loadAirports() {
+      setAirportsLoading(true);
+      try {
+        const airportsData = await fetchAirports();
+        setAirports(airportsData);
+      } catch (err) {
+        console.error("Error fetching airports:", err);
+        setError("Failed to load airports. Please try again later.");
+      } finally {
+        setAirportsLoading(false);
+      }
+    }
+
+    async function loadAirlines() {
+      setAirlinesLoading(true);
+      try {
+        const airlinesData = await fetchAirlines();
+        setAirlines(airlinesData);
+      } catch (err) {
+        console.error("Error fetching airlines:", err);
+        // Don't set error for airlines as it's less critical
+      } finally {
+        setAirlinesLoading(false);
+      }
+    }
+
+    loadAirports();
+    loadAirlines();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,12 +133,49 @@ export function FlightSearchForm() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="airline">Airline (optional)</Label>
-                <Input
-                  id="airline"
-                  placeholder="e.g. American Airlines"
-                  value={airline}
-                  onChange={(e) => setAirline(e.target.value)}
-                />
+                <Popover open={airlineOpen} onOpenChange={setAirlineOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={airlineOpen}
+                      className="w-full justify-between"
+                    >
+                      {airline
+                        ? airlines.find((a) => a.value === airline)?.label || airline
+                        : "Select airline..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search airline..." />
+                      <CommandEmpty>
+                        {airlinesLoading ? "Loading..." : "No airline found."}
+                      </CommandEmpty>
+                      <CommandGroup className="max-h-60 overflow-y-auto">
+                        {airlines.map((a) => (
+                          <CommandItem
+                            key={a.value}
+                            value={a.value}
+                            onSelect={(currentValue: string) => {
+                              setAirline(currentValue === airline ? "" : currentValue);
+                              setAirlineOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                airline === a.value ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {a.label} ({a.code})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date">Date (optional)</Label>
@@ -104,23 +200,95 @@ export function FlightSearchForm() {
               )}
               <div className="space-y-2">
                 <Label htmlFor="departureAirport">Departure Airport</Label>
-                <Input
-                  id="departureAirport"
-                  placeholder="e.g. JFK"
-                  value={departureAirport}
-                  onChange={(e) => setDepartureAirport(e.target.value)}
-                  required={activeTab === "route"}
-                />
+                <Popover open={departureOpen} onOpenChange={setDepartureOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={departureOpen}
+                      className="w-full justify-between"
+                    >
+                      {departureAirport
+                        ? airports.find((a) => a.value === departureAirport)?.label || departureAirport
+                        : "Select departure airport..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search airport..." />
+                      <CommandEmpty>
+                        {airportsLoading ? "Loading..." : "No airport found."}
+                      </CommandEmpty>
+                      <CommandGroup className="max-h-60 overflow-y-auto">
+                        {airports.map((airport) => (
+                          <CommandItem
+                            key={airport.value}
+                            value={airport.value}
+                            onSelect={(currentValue: string) => {
+                              setDepartureAirport(currentValue === departureAirport ? "" : currentValue);
+                              setDepartureOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                departureAirport === airport.value ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {airport.label} ({airport.code})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="arrivalAirport">Arrival Airport</Label>
-                <Input
-                  id="arrivalAirport"
-                  placeholder="e.g. LAX"
-                  value={arrivalAirport}
-                  onChange={(e) => setArrivalAirport(e.target.value)}
-                  required={activeTab === "route"}
-                />
+                <Popover open={arrivalOpen} onOpenChange={setArrivalOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={arrivalOpen}
+                      className="w-full justify-between"
+                    >
+                      {arrivalAirport
+                        ? airports.find((a) => a.value === arrivalAirport)?.label || arrivalAirport
+                        : "Select arrival airport..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search airport..." />
+                      <CommandEmpty>
+                        {airportsLoading ? "Loading..." : "No airport found."}
+                      </CommandEmpty>
+                      <CommandGroup className="max-h-60 overflow-y-auto">
+                        {airports.map((airport) => (
+                          <CommandItem
+                            key={airport.value}
+                            value={airport.value}
+                            onSelect={(currentValue: string) => {
+                              setArrivalAirport(currentValue === arrivalAirport ? "" : currentValue);
+                              setArrivalOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                arrivalAirport === airport.value ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {airport.label} ({airport.code})
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date">Date (optional)</Label>
