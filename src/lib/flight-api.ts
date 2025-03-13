@@ -7,137 +7,42 @@ const API_KEY = process.env.NEXT_PUBLIC_AVIATIONSTACK_API_KEY || "your_api_key_h
 // Counter for generating unique IDs when flight identifiers are missing
 let uniqueIdCounter = 0;
 
-// Define the search parameters interface
-export interface FlightSearchParams {
-  // Flight identifiers
-  flightNumber?: string;
-  flightIata?: string;
-  flightIcao?: string;
-  
-  // Airline information
-  airline?: string;
-  airlineIata?: string;
-  airlineIcao?: string;
-  
-  // Airport information
-  departureAirport?: string;
-  departureIata?: string;
-  departureIcao?: string;
-  arrivalAirport?: string;
-  arrivalIata?: string;
-  arrivalIcao?: string;
-  
-  // Date and time
-  date?: string;
-  departureDate?: string;
-  arrivalDate?: string;
-  returnDate?: string;
-  
-  // Flight status
-  status?: FlightStatus;
-  
-  // Pagination
-  limit?: number;
-  offset?: number;
-  
-  // Additional filters
-  minPrice?: number;
-  maxPrice?: number;
-  directFlightsOnly?: boolean;
-  cabinClass?: string;
-  adults?: string;
-  children?: string;
-  infants?: string;
-}
-
 /**
  * Search for flights based on various criteria
  * @param params Search parameters
  * @returns Array of flights matching the criteria
  */
-export async function searchFlights(params: FlightSearchParams): Promise<Flight[]> {
+export async function searchFlights(params: {
+  flightNumber?: string;
+  airline?: string;
+  departureAirport?: string;
+  arrivalAirport?: string;
+  date?: string;
+}): Promise<Flight[]> {
   try {
     // Build query parameters
     const queryParams = new URLSearchParams();
     queryParams.append("access_key", API_KEY);
     
-    // Flight identifiers
-    if (params.flightNumber || params.flightIata) {
-      queryParams.append("flight_iata", params.flightNumber || params.flightIata || "");
+    if (params.flightNumber) {
+      queryParams.append("flight_iata", params.flightNumber);
     }
     
-    if (params.flightIcao) {
-      queryParams.append("flight_icao", params.flightIcao);
-    }
-    
-    // Airline information
     if (params.airline) {
       queryParams.append("airline_name", params.airline);
     }
     
-    if (params.airlineIata) {
-      queryParams.append("airline_iata", params.airlineIata);
-    }
-    
-    if (params.airlineIcao) {
-      queryParams.append("airline_icao", params.airlineIcao);
-    }
-    
-    // Airport information
     if (params.departureAirport) {
       queryParams.append("dep_iata", params.departureAirport);
-    }
-    
-    if (params.departureIata) {
-      queryParams.append("dep_iata", params.departureIata);
-    }
-    
-    if (params.departureIcao) {
-      queryParams.append("dep_icao", params.departureIcao);
     }
     
     if (params.arrivalAirport) {
       queryParams.append("arr_iata", params.arrivalAirport);
     }
     
-    if (params.arrivalIata) {
-      queryParams.append("arr_iata", params.arrivalIata);
-    }
-    
-    if (params.arrivalIcao) {
-      queryParams.append("arr_icao", params.arrivalIcao);
-    }
-    
-    // Date and time
     if (params.date) {
       queryParams.append("flight_date", params.date);
     }
-    
-    if (params.departureDate) {
-      queryParams.append("dep_scheduled_time", params.departureDate);
-    }
-    
-    if (params.arrivalDate) {
-      queryParams.append("arr_scheduled_time", params.arrivalDate);
-    }
-    
-    // Flight status
-    if (params.status) {
-      queryParams.append("flight_status", params.status);
-    }
-    
-    // Pagination
-    if (params.limit) {
-      queryParams.append("limit", params.limit.toString());
-    }
-    
-    if (params.offset) {
-      queryParams.append("offset", params.offset.toString());
-    }
-    
-    // Note: The following parameters are not directly supported by AviationStack API
-    // but we include them for future integration with other services or custom filtering
-    // - minPrice, maxPrice, directFlightsOnly, cabinClass, adults, children, infants
     
     // Make API request
     const response = await fetch(`${API_BASE_URL}/flights?${queryParams.toString()}`);
