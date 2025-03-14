@@ -42,12 +42,13 @@ export function MainNav() {
 
   const navItems = [
     { href: "/", label: "Home", icon: <Home className="h-4 w-4 mr-2" /> },
-    { href: "/flights/search", label: "Search Flights", icon: <Search className="h-4 w-4 mr-2" /> },
+    { href: "/flights/results", label: "Search Flights", icon: <Search className="h-4 w-4 mr-2" /> },
   ];
 
   const authenticatedItems = [
     { href: "/dashboard", label: "Dashboard", icon: <Plane className="h-4 w-4 mr-2" /> },
-    { href: "/alerts", label: "My Alerts", icon: <Bell className="h-4 w-4 mr-2" /> },
+    { href: "/dashboard/alerts", label: "My Alerts", icon: <Bell className="h-4 w-4 mr-2" /> },
+    { href: "/dashboard/tracked-flights", label: "Tracked Flights", icon: <Plane className="h-4 w-4 mr-2" /> },
   ];
 
   return (
@@ -141,6 +142,12 @@ export function MainNav() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard">Dashboard</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/alerts">My Alerts</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/tracked-flights">Tracked Flights</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/profile">Profile</Link>

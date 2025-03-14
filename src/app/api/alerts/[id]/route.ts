@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { deleteAlert, toggleAlertStatus } from "@/lib/alerts";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 interface RouteParams {
   params: {
@@ -8,11 +9,14 @@ interface RouteParams {
   };
 }
 
-export async function PATCH(request: Request, { params }: RouteParams) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
@@ -21,75 +25,90 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     
     const { id } = params;
     
-    if (!id) {
-      return NextResponse.json(
-        { message: "Alert ID is required" },
-        { status: 400 }
-      );
-    }
-    
-    // Toggle the alert status
-    const alert = await toggleAlertStatus(id, session.user.id);
-    
-    return NextResponse.json({
-      message: `Alert ${alert.isActive ? "activated" : "deactivated"} successfully`,
-      alert
+    // Check if the alert exists and belongs to the user
+    const alert = await db.alert.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
     });
-  } catch (error: any) {
-    console.error("Toggle alert error:", error);
-    
-    if (error.message.includes("not found") || error.message.includes("permission")) {
+
+    if (!alert) {
       return NextResponse.json(
-        { message: error.message },
+        { message: "Alert not found" },
         { status: 404 }
       );
     }
     
+    // Toggle the alert status
+    const updatedAlert = await db.alert.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: !alert.isActive,
+      },
+    });
+    
+    return NextResponse.json({
+      message: `Alert ${updatedAlert.isActive ? "activated" : "deactivated"} successfully`,
+      alert: updatedAlert
+    });
+  } catch (error) {
+    console.error("Error toggling alert:", error);
     return NextResponse.json(
-      { message: error.message || "Something went wrong" },
+      { message: "Failed to toggle alert status" },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
-    
+
     const { id } = params;
-    
-    if (!id) {
-      return NextResponse.json(
-        { message: "Alert ID is required" },
-        { status: 400 }
-      );
-    }
-    
-    // Delete the alert
-    await deleteAlert(id, session.user.id);
-    
-    return NextResponse.json({
-      message: "Alert deleted successfully"
+
+    // Check if the alert exists and belongs to the user
+    const alert = await db.alert.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
     });
-  } catch (error: any) {
-    console.error("Delete alert error:", error);
-    
-    if (error.message.includes("not found") || error.message.includes("permission")) {
+
+    if (!alert) {
       return NextResponse.json(
-        { message: error.message },
+        { message: "Alert not found" },
         { status: 404 }
       );
     }
-    
+
+    // Delete the alert
+    await db.alert.delete({
+      where: {
+        id,
+      },
+    });
+
     return NextResponse.json(
-      { message: error.message || "Something went wrong" },
+      { message: "Alert deleted successfully" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error deleting alert:", error);
+    return NextResponse.json(
+      { message: "Failed to delete alert" },
       { status: 500 }
     );
   }

@@ -1,51 +1,54 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { deleteTrackedFlight } from "@/lib/tracked-flights";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
-export async function DELETE(request: Request, { params }: RouteParams) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
-    
+
     const { id } = params;
-    
-    if (!id) {
+
+    // Check if the flight exists and belongs to the user
+    const trackedFlight = await db.trackedFlight.findUnique({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+    });
+
+    if (!trackedFlight) {
       return NextResponse.json(
-        { message: "Flight ID is required" },
-        { status: 400 }
-      );
-    }
-    
-    // Delete the tracked flight
-    await deleteTrackedFlight(id, session.user.id);
-    
-    return NextResponse.json(
-      { message: "Flight tracking removed successfully" }
-    );
-  } catch (error: any) {
-    console.error("Delete tracked flight error:", error);
-    
-    if (error.message.includes("not found") || error.message.includes("permission")) {
-      return NextResponse.json(
-        { message: error.message },
+        { message: "Tracked flight not found" },
         { status: 404 }
       );
     }
-    
+
+    // Delete the tracked flight
+    await db.trackedFlight.delete({
+      where: {
+        id,
+      },
+    });
+
     return NextResponse.json(
-      { message: error.message || "Something went wrong" },
+      { message: "Tracked flight deleted successfully" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error deleting tracked flight:", error);
+    return NextResponse.json(
+      { message: "Failed to delete tracked flight" },
       { status: 500 }
     );
   }

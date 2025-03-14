@@ -1,86 +1,103 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getTrackedFlightsForUser, trackFlightForUser } from "@/lib/tracked-flights";
+import { authOptions } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { z } from "zod";
 
-// Schema for tracking a flight
-const trackFlightSchema = z.object({
+// Schema for validating tracked flight creation
+const createTrackedFlightSchema = z.object({
   flightNumber: z.string().min(1, "Flight number is required"),
-  airline: z.string().min(1, "Airline is required"),
-  departureAirport: z.string().min(1, "Departure airport is required"),
-  arrivalAirport: z.string().min(1, "Arrival airport is required"),
-  departureTime: z.string().optional(),
-  arrivalTime: z.string().optional(),
+  date: z.string().min(1, "Date is required"),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
-    
-    // Get tracked flights for the user
-    const trackedFlights = await getTrackedFlightsForUser(session.user.id);
-    
-    return NextResponse.json({ trackedFlights });
-  } catch (error: any) {
-    console.error("Get tracked flights error:", error);
-    
+
+    const trackedFlights = await db.trackedFlight.findMany({
+      where: {
+        userId: session.user.id,
+      },
+      include: {
+        alerts: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(trackedFlights);
+  } catch (error) {
+    console.error("Error fetching tracked flights:", error);
     return NextResponse.json(
-      { message: error.message || "Something went wrong" },
+      { message: "Failed to fetch tracked flights" },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession();
-    
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
       );
     }
-    
-    const body = await request.json();
-    
-    // Validate input
-    const result = trackFlightSchema.safeParse(body);
-    
+
+    const body = await req.json();
+    const result = createTrackedFlightSchema.safeParse(body);
+
     if (!result.success) {
       return NextResponse.json(
-        { message: "Invalid input", errors: result.error.errors },
+        { message: "Invalid request", errors: result.error.flatten() },
         { status: 400 }
       );
     }
-    
-    // Track the flight
-    const trackedFlight = await trackFlightForUser(
-      session.user.id,
-      result.data.flightNumber,
-      result.data.airline,
-      result.data.departureAirport,
-      result.data.arrivalAirport,
-      result.data.departureTime,
-      result.data.arrivalTime
-    );
-    
+
+    const { flightNumber, date } = result.data;
+
+    // Check if flight is already being tracked by the user
+    const existingTrackedFlight = await db.trackedFlight.findFirst({
+      where: {
+        userId: session.user.id,
+        flightNumber,
+        date,
+      },
+    });
+
+    if (existingTrackedFlight) {
+      return NextResponse.json(
+        { message: "You are already tracking this flight" },
+        { status: 400 }
+      );
+    }
+
+    // Create a new tracked flight
+    const trackedFlight = await db.trackedFlight.create({
+      data: {
+        flightNumber,
+        date,
+        userId: session.user.id,
+        // You might want to fetch additional flight details from an external API here
+        // and populate fields like airline, departureAirport, etc.
+      },
+    });
+
+    return NextResponse.json(trackedFlight, { status: 201 });
+  } catch (error) {
+    console.error("Error creating tracked flight:", error);
     return NextResponse.json(
-      { message: "Flight tracked successfully", trackedFlight },
-      { status: 201 }
-    );
-  } catch (error: any) {
-    console.error("Track flight error:", error);
-    
-    return NextResponse.json(
-      { message: error.message || "Something went wrong" },
+      { message: "Failed to create tracked flight" },
       { status: 500 }
     );
   }
