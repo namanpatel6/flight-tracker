@@ -6,11 +6,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     
     const params = {
-      flightNumber: searchParams.get("flightNumber") || undefined,
-      airline: searchParams.get("airline") || undefined,
-      departureAirport: searchParams.get("departureAirport") || undefined,
-      arrivalAirport: searchParams.get("arrivalAirport") || undefined,
-      date: searchParams.get("date") || undefined,
+      flight_iata: searchParams.get("flight_iata") || undefined,
+      airline_iata: searchParams.get("airline_iata") || undefined,
+      dep_iata: searchParams.get("dep_iata") || undefined,
+      arr_iata: searchParams.get("arr_iata") || undefined,
+      flight_date: searchParams.get("flight_date") || undefined,
+      arr_scheduled_time_dep: searchParams.get("arr_scheduled_time_dep") || undefined,
+      arr_scheduled_time_arr: searchParams.get("arr_scheduled_time_arr") || undefined,
     };
     
     // Validate search parameters
