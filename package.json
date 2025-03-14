@@ -6,7 +6,17 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:email": "node src/scripts/test-email.js",
+    "test:prod-email": "node src/scripts/test-production-email.js",
+    "trigger:cron": "node src/scripts/trigger-cron.js",
+    "trigger:prod-cron": "node src/scripts/trigger-prod-cron.js",
+    "check:env": "ts-node -r tsconfig-paths/register src/scripts/check-env.ts",
+    "test:flight": "node src/scripts/test-tracked-flight.js",
+    "create:user": "node src/scripts/create-test-user.js",
+    "test:api": "node src/scripts/test-api-flight.js",
+    "create:gmail-flight": "node src/scripts/create-gmail-flight.js",
+    "simulate:change": "node src/scripts/simulate-flight-change.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.8.0",
@@ -30,9 +40,11 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
     "date-fns": "^4.1.0",
+    "dotenv": "^16.4.7",
     "lucide-react": "^0.479.0",
     "next": "15.2.1",
     "next-auth": "^4.24.11",
+    "node-fetch": "^2.7.0",
     "nodemailer": "^6.10.0",
     "react": "^19.0.0",
     "react-day-picker": "^9.6.2",
@@ -55,6 +67,8 @@
     "eslint-config-next": "15.2.1",
     "prisma": "^6.5.0",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
   }
 }

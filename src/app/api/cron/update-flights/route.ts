@@ -10,12 +10,34 @@ import { Flight } from "@/types/flight";
 export async function GET(request: NextRequest) {
   try {
     // Verify API key for security (should match your environment variable)
-    const apiKey = request.headers.get("x-api-key");
-    if (apiKey !== process.env.CRON_API_KEY) {
+    // Check both x-api-key header and Authorization Bearer header
+    const xApiKey = request.headers.get("x-api-key");
+    const authHeader = request.headers.get("Authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ") 
+      ? authHeader.substring(7) 
+      : null;
+    
+    const isAuthorized = 
+      xApiKey === process.env.CRON_API_KEY || 
+      bearerToken === process.env.CRON_API_KEY;
+    
+    if (!isAuthorized) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+    
+    // Check if we should run in production mode
+    const environmentHeader = request.headers.get("X-Environment");
+    const isProduction = 
+      environmentHeader === "production" || 
+      process.env.NODE_ENV === "production";
+    
+    if (isProduction) {
+      console.log("Running cron job in PRODUCTION mode - will send real emails");
+    } else {
+      console.log("Running cron job in DEVELOPMENT mode - will use Ethereal for emails");
     }
     
     // Get all tracked flights with active alerts

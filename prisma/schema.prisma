@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -19,15 +13,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -41,18 +34,17 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  accounts      Account[]
-  sessions      Session[]
-
-  trackedFlights TrackedFlight[]
+  id             String          @id @default(cuid())
+  name           String?
+  email          String?         @unique
+  emailVerified  DateTime?
+  password       String?
+  image          String?
+  accounts       Account[]
   alerts         Alert[]
   notifications  Notification[]
+  sessions       Session[]
+  trackedFlights TrackedFlight[]
 }
 
 model VerificationToken {
@@ -64,39 +56,37 @@ model VerificationToken {
 }
 
 model TrackedFlight {
-  id              String    @id @default(cuid())
-  flightNumber    String
-  departureAirport String?
-  arrivalAirport   String?
-  departureTime     DateTime?
-  arrivalTime       DateTime?
-  status            String?
-  gate              String?
-  terminal          String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  userId            String
-
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  alerts Alert[]
-  notifications Notification[]
+  id               String         @id @default(cuid())
+  flightNumber     String
+  departureAirport String
+  arrivalAirport   String
+  departureTime    DateTime?
+  arrivalTime      DateTime?
+  status           String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  userId           String
+  gate             String?
+  terminal         String?
+  alerts           Alert[]
+  notifications    Notification[]
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([flightNumber])
 }
 
 model Alert {
-  id        String   @id @default(cuid())
-  type      String   // STATUS_CHANGE, DELAY, GATE_CHANGE, DEPARTURE, ARRIVAL
+  id        String        @id @default(cuid())
+  type      String
   threshold Int?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
   userId    String
   flightId  String
-
-  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  flight TrackedFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  flight    TrackedFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([flightId])
@@ -104,17 +94,16 @@ model Alert {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   title     String
   message   String
   type      String
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  read      Boolean        @default(false)
+  createdAt DateTime       @default(now())
   userId    String
   flightId  String?
-
-  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  flight TrackedFlight? @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  flight    TrackedFlight? @relation(fields: [flightId], references: [id])
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([flightId])

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { searchFlights } from "@/lib/flight-api";
 
 // Schema for validating tracked flight creation
 const createTrackedFlightSchema = z.object({
@@ -47,10 +48,22 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         { message: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    // Get the user from the database to ensure we have the correct ID
+    const user = await db.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
       );
     }
 
@@ -69,9 +82,12 @@ export async function POST(req: NextRequest) {
     // Check if flight is already being tracked by the user
     const existingTrackedFlight = await db.trackedFlight.findFirst({
       where: {
-        userId: session.user.id,
+        userId: user.id,
         flightNumber,
-        date,
+        departureTime: {
+          gte: new Date(date),
+          lt: new Date(new Date(date).setDate(new Date(date).getDate() + 1)),
+        },
       },
     });
 
@@ -82,16 +98,51 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create a new tracked flight
+    // Create a new tracked flight with minimal data first
+    // This avoids issues with the API rate limit
     const trackedFlight = await db.trackedFlight.create({
       data: {
         flightNumber,
-        date,
-        userId: session.user.id,
-        // You might want to fetch additional flight details from an external API here
-        // and populate fields like airline, departureAirport, etc.
+        userId: user.id,
+        departureAirport: "",
+        arrivalAirport: "",
+        departureTime: new Date(date),
+        status: "scheduled",
       },
     });
+
+    // Try to fetch flight details from the API and update the flight if successful
+    try {
+      const flightResults = await searchFlights({
+        flight_iata: flightNumber,
+        flight_date: date,
+      });
+      
+      if (flightResults && flightResults.length > 0) {
+        const flightDetails = flightResults[0];
+        
+        // Update the tracked flight with the API data
+        await db.trackedFlight.update({
+          where: { id: trackedFlight.id },
+          data: {
+            departureAirport: flightDetails.departure?.iata || "",
+            arrivalAirport: flightDetails.arrival?.iata || "",
+            departureTime: flightDetails.departure?.scheduled 
+              ? new Date(flightDetails.departure.scheduled) 
+              : new Date(date),
+            arrivalTime: flightDetails.arrival?.scheduled 
+              ? new Date(flightDetails.arrival.scheduled) 
+              : null,
+            status: flightDetails.flight_status || "scheduled",
+            gate: flightDetails.departure?.gate || null,
+            terminal: flightDetails.departure?.terminal || null,
+          },
+        });
+      }
+    } catch (apiError) {
+      console.error("Error fetching flight details:", apiError);
+      // Continue even if API call fails - we already created the basic flight
+    }
 
     return NextResponse.json(trackedFlight, { status: 201 });
   } catch (error) {

@@ -19,7 +19,7 @@ import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 export function CreateTrackedFlight({ onSuccess }: { onSuccess?: () => void }) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [flightNumber, setFlightNumber] = useState("");
@@ -28,11 +28,18 @@ export function CreateTrackedFlight({ onSuccess }: { onSuccess?: () => void }) {
   const [error, setError] = useState("");
 
   const handleCreateTrackedFlight = async () => {
+    // Check authentication
+    if (status === "loading") {
+      toast.error("Please wait while we check your authentication status");
+      return;
+    }
+
     if (!session?.user) {
       toast.error("You must be signed in to track flights");
       return;
     }
 
+    // Validate input
     if (!flightNumber) {
       setError("Flight number is required");
       return;
@@ -43,24 +50,33 @@ export function CreateTrackedFlight({ onSuccess }: { onSuccess?: () => void }) {
       return;
     }
 
+    // Format flight number (remove spaces)
+    const formattedFlightNumber = flightNumber.trim().replace(/\s+/g, "");
+
     setIsLoading(true);
     setError("");
 
     try {
+      console.log("Sending request to track flight:", {
+        flightNumber: formattedFlightNumber,
+        date,
+      });
+
       const response = await fetch("/api/tracked-flights", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          flightNumber,
+          flightNumber: formattedFlightNumber,
           date,
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to track flight");
+        throw new Error(data.message || "Failed to create tracked flight");
       }
 
       toast.success("Flight tracked successfully");
@@ -75,15 +91,24 @@ export function CreateTrackedFlight({ onSuccess }: { onSuccess?: () => void }) {
       router.refresh();
     } catch (error) {
       console.error("Error tracking flight:", error);
-      setError(error instanceof Error ? error.message : "Failed to track flight");
-      toast.error("Failed to track flight");
+      setError(error instanceof Error ? error.message : "Failed to create tracked flight");
+      toast.error(error instanceof Error ? error.message : "Failed to create tracked flight");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Set default date to today if not set
+  const handleDialogOpen = (open: boolean) => {
+    if (open && !date) {
+      const today = new Date().toISOString().split('T')[0];
+      setDate(today);
+    }
+    setOpen(open);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleDialogOpen}>
       <DialogTrigger asChild>
         <Button className="w-full">
           <Plus className="mr-2 h-4 w-4" /> Track New Flight

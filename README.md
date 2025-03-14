@@ -17,6 +17,7 @@ A modern flight tracking application that allows users to track flights between 
 - **Backend**: Node.js
 - **Authentication**: NextAuth.js with Google and GitHub OAuth
 - **API**: AviationStack for real-time flight data
+- **Email Notifications**: Nodemailer with Ethereal for development
 
 ## Getting Started
 
@@ -58,6 +59,17 @@ GITHUB_SECRET=your_github_secret_here
 
 # Database
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/flight_tracker"
+
+# Email Configuration (for production)
+EMAIL_HOST="smtp.example.com"
+EMAIL_PORT="587"
+EMAIL_SECURE="false"
+EMAIL_USER="user@example.com"
+EMAIL_PASSWORD="your-email-password"
+EMAIL_FROM="Flight Tracker <notifications@flight-tracker.com>"
+
+# Cron Job API Key
+CRON_API_KEY="your-cron-api-key"
 ```
 
 4. Generate a secure NEXTAUTH_SECRET:
@@ -123,6 +135,37 @@ The NEXTAUTH_SECRET is a cryptographic key used by NextAuth.js for:
 
 Always use a strong, randomly generated secret and never commit it to your repository.
 
+## Email Notification System
+
+The Flight Tracker application includes an email notification system that sends alerts to users about changes to their tracked flights. For detailed information, see [EMAIL_NOTIFICATIONS.md](./EMAIL_NOTIFICATIONS.md).
+
+### Key Features
+
+- **Real-time Alerts**: Receive email notifications for flight status changes, delays, gate changes, departures, and arrivals.
+- **Automated Updates**: A cron job periodically checks for flight updates and sends notifications when changes are detected.
+- **Development Mode**: Uses Ethereal Email for testing without sending real emails.
+- **Production Ready**: Can be configured to use any SMTP service for production.
+
+### Testing Email Functionality
+
+To test the email functionality:
+
+```bash
+npm run test:email
+```
+
+This will send test emails for each alert type using Ethereal Email. You can view the emails in the Ethereal web interface using the preview URLs printed in the console.
+
+### Manually Triggering the Cron Job
+
+To manually trigger the cron job that checks for flight updates and sends notifications:
+
+```bash
+npm run trigger:cron
+```
+
+For more details about the email notification system, including configuration, implementation details, and troubleshooting, see [EMAIL_NOTIFICATIONS.md](./EMAIL_NOTIFICATIONS.md).
+
 ## Development
 
 - `npm run dev` - Start development server
@@ -130,7 +173,29 @@ Always use a strong, randomly generated secret and never commit it to your repos
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 - `npm run format` - Format code with Prettier
+- `npm run test:email` - Test email notification functionality
+- `npm run trigger:cron` - Manually trigger the flight update cron job
 
 ## License
 
 [MIT License](LICENSE)
+
+## Email Notifications
+
+The Flight Tracker application includes an email notification service that sends alerts to users when there are changes to their tracked flights. For detailed setup instructions, see [EMAIL_SETUP.md](./EMAIL_SETUP.md).
+
+### Key Features
+
+- **Automated Notifications**: Receive email alerts for flight status changes, delays, gate changes, departures, and arrivals.
+- **Customizable Templates**: Email templates can be customized to match your branding.
+- **Development Mode**: Uses Ethereal Email for testing without sending real emails.
+- **Production Ready**: Can be configured to use any SMTP service for production.
+
+### Getting Started with Email Notifications
+
+1. Set up the required environment variables in `.env.local`
+2. Check your configuration with `npm run check:env`
+3. Test the email functionality with `npm run test:email`
+4. Set up the cron job for automatic updates
+
+For more details, see the [Email Setup Guide](./EMAIL_SETUP.md).
