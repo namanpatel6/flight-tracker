@@ -15,7 +15,7 @@ export default async function Dashboard() {
       <p className="text-lg mb-4">
         This is your flight tracker dashboard. Here you can track flights, set up alerts, and more.
       </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-3">Track a Flight</h2>
           <p className="text-gray-600 mb-4">
@@ -46,6 +46,17 @@ export default async function Dashboard() {
           <Link href="/dashboard/alerts">
             <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
               Manage Alerts
+            </button>
+          </Link>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold mb-3">Notifications</h2>
+          <p className="text-gray-600 mb-4">
+            View and manage your flight notifications.
+          </p>
+          <Link href="/dashboard/notifications">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+              View Notifications
             </button>
           </Link>
         </div>

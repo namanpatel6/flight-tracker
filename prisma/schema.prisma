@@ -52,6 +52,7 @@ model User {
 
   trackedFlights TrackedFlight[]
   alerts         Alert[]
+  notifications  Notification[]
 }
 
 model VerificationToken {
@@ -63,22 +64,22 @@ model VerificationToken {
 }
 
 model TrackedFlight {
-  id               String    @id @default(cuid())
-  flightNumber     String
-  airline          String?
+  id              String    @id @default(cuid())
+  flightNumber    String
   departureAirport String?
   arrivalAirport   String?
-  departureTime    DateTime?
-  arrivalTime      DateTime?
-  status           String?
-  date             String
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  departureTime     DateTime?
+  arrivalTime       DateTime?
+  status            String?
+  gate              String?
+  terminal          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  userId            String
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   alerts Alert[]
+  notifications Notification[]
 
   @@index([userId])
   @@index([flightNumber])
@@ -86,17 +87,36 @@ model TrackedFlight {
 
 model Alert {
   id        String   @id @default(cuid())
-  type      String
+  type      String   // STATUS_CHANGE, DELAY, GATE_CHANGE, DEPARTURE, ARRIVAL
   threshold Int?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  userId    String
+  flightId  String
 
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  flightId String
-  flight   TrackedFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flight TrackedFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([flightId])
+  @@index([isActive])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    String
+  flightId  String?
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flight TrackedFlight? @relation(fields: [flightId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([flightId])
+  @@index([read])
 }
