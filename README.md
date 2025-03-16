@@ -5,7 +5,8 @@ A modern flight tracking application that allows users to track flights between 
 ## Features
 
 - Search flights from multiple carriers and websites
-- Create and manage complex tracking rules
+- Create and manage complex tracking rules with logical operators (AND/OR)
+- Set up custom alerts based on flight status, times, gates, and more
 - Receive notifications via email and SMS
 - Monitor rule status and execution
 - View detailed flight information with direct links
@@ -175,6 +176,7 @@ For more details about the email notification system, including configuration, i
 - `npm run format` - Format code with Prettier
 - `npm run test:email` - Test email notification functionality
 - `npm run trigger:cron` - Manually trigger the flight update cron job
+- `npm run test:rules` - Test the rules system functionality
 
 ## License
 
@@ -199,3 +201,31 @@ The Flight Tracker application includes an email notification service that sends
 4. Set up the cron job for automatic updates
 
 For more details, see the [Email Setup Guide](./EMAIL_SETUP.md).
+
+## Flight Rules System
+
+The Flight Tracker application includes a powerful rules engine that allows you to create complex conditions for tracking flights and receiving notifications. For detailed information, see [RULES_AND_ALERTS.md](./RULES_AND_ALERTS.md).
+
+### Key Features
+
+- **Complex Rule Creation**: Create rules with multiple conditions using logical operators (AND/OR).
+- **Flexible Conditions**: Set conditions based on flight status, departure/arrival times, gates, terminals, and more.
+- **Custom Alerts**: Configure alerts for specific flight events and notification preferences.
+- **Rule Management**: Enable/disable, edit, or delete rules as needed.
+
+### Creating and Managing Rules
+
+1. Navigate to the **Flight Rules** page in the dashboard
+2. Click the **Create Rule** button to create a new rule
+3. Define conditions, select operators, and set up alerts
+4. Save and monitor your rules from the dashboard
+
+### Examples
+
+The system supports various rule configurations, such as:
+
+- Business trip rules that track specific flights with status and time conditions
+- Family vacation rules that monitor multiple flights with different alert types
+- Airport change notifications that alert you when gates or terminals are updated
+
+For more details about the rules system, including examples and troubleshooting, see [RULES_AND_ALERTS.md](./RULES_AND_ALERTS.md).

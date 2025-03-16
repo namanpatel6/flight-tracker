@@ -43,6 +43,7 @@ model User {
   accounts       Account[]
   alerts         Alert[]
   notifications  Notification[]
+  rules          Rule[]
   sessions       Session[]
   trackedFlights TrackedFlight[]
 }
@@ -56,21 +57,22 @@ model VerificationToken {
 }
 
 model TrackedFlight {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   flightNumber     String
   departureAirport String
   arrivalAirport   String
   departureTime    DateTime?
   arrivalTime      DateTime?
   status           String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
   userId           String
   gate             String?
   terminal         String?
   alerts           Alert[]
   notifications    Notification[]
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rules            RuleCondition[]
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([flightNumber])
@@ -85,12 +87,49 @@ model Alert {
   updatedAt DateTime      @updatedAt
   userId    String
   flightId  String
+  ruleId    String?
   flight    TrackedFlight @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  rule      Rule?         @relation(fields: [ruleId], references: [id])
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([flightId])
   @@index([isActive])
+  @@index([ruleId])
+}
+
+model Rule {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  operator    String          @default("AND")
+  isActive    Boolean         @default(true)
+  schedule    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  userId      String
+  alerts      Alert[]
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conditions  RuleCondition[]
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model RuleCondition {
+  id        String         @id @default(cuid())
+  field     String
+  operator  String
+  value     String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  ruleId    String
+  flightId  String?
+  flight    TrackedFlight? @relation(fields: [flightId], references: [id])
+  rule      Rule           @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([flightId])
 }
 
 model Notification {
@@ -102,6 +141,7 @@ model Notification {
   createdAt DateTime       @default(now())
   userId    String
   flightId  String?
+  ruleId    String?
   flight    TrackedFlight? @relation(fields: [flightId], references: [id])
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 

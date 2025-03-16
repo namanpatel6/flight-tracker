@@ -50,6 +50,17 @@ export default async function Dashboard() {
           </Link>
         </div>
         <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold mb-3">Flight Rules</h2>
+          <p className="text-gray-600 mb-4">
+            Create complex rules with multiple conditions.
+          </p>
+          <Link href="/dashboard/rules">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+              Manage Rules
+            </button>
+          </Link>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-3">Notifications</h2>
           <p className="text-gray-600 mb-4">
             View and manage your flight notifications.

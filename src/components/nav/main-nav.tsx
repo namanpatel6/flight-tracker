@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, User, LogOut, Home, Search, Bell, Plane } from "lucide-react";
+import { Menu, X, User, LogOut, Home, Search, Bell, Plane, BookOpen } from "lucide-react";
 
 export function MainNav() {
   const { data: session, status } = useSession();
@@ -48,6 +48,7 @@ export function MainNav() {
   const authenticatedItems = [
     { href: "/dashboard", label: "Dashboard", icon: <Plane className="h-4 w-4 mr-2" /> },
     { href: "/dashboard/alerts", label: "My Alerts", icon: <Bell className="h-4 w-4 mr-2" /> },
+    { href: "/dashboard/rules", label: "Flight Rules", icon: <BookOpen className="h-4 w-4 mr-2" /> },
     { href: "/dashboard/tracked-flights", label: "Tracked Flights", icon: <Plane className="h-4 w-4 mr-2" /> },
   ];
 
@@ -145,6 +146,9 @@ export function MainNav() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/alerts">My Alerts</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/rules">Flight Rules</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/tracked-flights">Tracked Flights</Link>

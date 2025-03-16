@@ -12,3 +12,9 @@ Here's a quick rundown of the project requirements:
 3. Ability to nofity me on the event of a succesfull rule run. The notification system should be flexible enough to support any type of notification, for instance emails, texts, etc.
 4. Ability to delete existing rules and monitor the state of a rule(whether is successfully running or not, any potential errors).
 5. Ability to send detailed information about the flights that match any rules, with links to specific search results/flights that match the rules.
+
+The requirements for creating flight rules are as follows:
+1. I should be able to create complex rules for one or more flights in a single rule. The rule should allow me to use complex operators to combine a bunch of logical statements, just like discrete mathematics.
+2. I should be able to modify and delete these rules, and for each rule I should be able to set a cron schedule/trigger.
+3. Once a rule is created, the user should be able to setup one or more alerts for the rule.
+4. Once a a rule alert condition is satiesfied, the user should receive a notification.

@@ -21,14 +21,24 @@ interface SearchPageProps {
 }
 
 export default function ResultsPage({ searchParams }: SearchPageProps) {
+  // Destructure searchParams to avoid the Next.js error
+  const {
+    flightNumber,
+    airline,
+    from,
+    to,
+    departureDate,
+    returnDate
+  } = searchParams;
+
   // Safe way to check if we have any search params without using Object methods directly
   const hasSearchParams = !!(
-    searchParams.flightNumber || 
-    searchParams.airline || 
-    searchParams.from || 
-    searchParams.to || 
-    searchParams.departureDate ||
-    searchParams.returnDate
+    flightNumber || 
+    airline || 
+    from || 
+    to || 
+    departureDate ||
+    returnDate
   );
 
   return (
