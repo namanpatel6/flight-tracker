@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, description, operator, schedule, conditions, alertTypes, flightIds } = result.data;
+    const { name, description, operator, schedule, conditions, alerts } = result.data;
 
     // Create the rule with a transaction to ensure all related records are created
     const rule = await prisma.$transaction(async (tx) => {
@@ -76,45 +76,129 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Create the conditions
-      await Promise.all(
-        conditions.map((condition) =>
-          tx.ruleCondition.create({
+      // Process conditions
+      for (const condition of conditions) {
+        let flightId = condition.flightId;
+        let trackedFlightId = condition.trackedFlightId;
+        
+        // If flight data is provided but no flightId, create a new Flight record
+        if (condition.flightData && !flightId) {
+          const newFlight = await tx.flight.create({
             data: {
-              field: condition.field,
-              operator: condition.operator,
-              value: condition.value,
-              ruleId: newRule.id,
-              flightId: condition.flightId,
-            },
-          })
-        )
-      );
-
-      // Create alerts for each flight and alert type
-      const alertPromises = [];
-      for (const flightId of flightIds) {
-        for (const alertType of alertTypes) {
-          alertPromises.push(
-            tx.alert.create({
-              data: {
-                type: alertType,
-                userId: session.user.id,
-                flightId,
-                ruleId: newRule.id,
-              },
-            })
-          );
+              flightNumber: condition.flightData.flightNumber,
+              airline: condition.flightData.airline,
+              departureAirport: condition.flightData.departureAirport,
+              arrivalAirport: condition.flightData.arrivalAirport,
+              departureTime: condition.flightData.departureTime ? new Date(condition.flightData.departureTime) : null,
+              arrivalTime: condition.flightData.arrivalTime ? new Date(condition.flightData.arrivalTime) : null,
+              status: condition.flightData.status,
+              gate: condition.flightData.gate,
+              terminal: condition.flightData.terminal,
+            }
+          });
+          flightId = newFlight.id;
         }
+        
+        await tx.ruleCondition.create({
+          data: {
+            field: condition.field,
+            operator: condition.operator,
+            value: condition.value,
+            ruleId: newRule.id,
+            flightId,
+            trackedFlightId,
+          },
+        });
       }
-      await Promise.all(alertPromises);
+
+      // Process alerts
+      for (const alert of alerts) {
+        let flightId = alert.flightId;
+        let trackedFlightId = alert.trackedFlightId;
+        
+        // If flight data is provided but no flightId, create a new Flight record
+        if (alert.flightData && !flightId) {
+          // Check if we already created this flight for a condition
+          const existingFlight = await tx.flight.findFirst({
+            where: {
+              flightNumber: alert.flightData.flightNumber,
+              departureAirport: alert.flightData.departureAirport,
+              arrivalAirport: alert.flightData.arrivalAirport,
+            }
+          });
+          
+          if (existingFlight) {
+            flightId = existingFlight.id;
+          } else {
+            const newFlight = await tx.flight.create({
+              data: {
+                flightNumber: alert.flightData.flightNumber,
+                airline: alert.flightData.airline,
+                departureAirport: alert.flightData.departureAirport,
+                arrivalAirport: alert.flightData.arrivalAirport,
+                departureTime: alert.flightData.departureTime ? new Date(alert.flightData.departureTime) : null,
+                arrivalTime: alert.flightData.arrivalTime ? new Date(alert.flightData.arrivalTime) : null,
+                status: alert.flightData.status,
+                gate: alert.flightData.gate,
+                terminal: alert.flightData.terminal,
+              }
+            });
+            flightId = newFlight.id;
+          }
+        }
+        
+        await tx.alert.create({
+          data: {
+            type: alert.type,
+            isActive: alert.isActive,
+            userId: session.user.id,
+            flightId,
+            trackedFlightId,
+            ruleId: newRule.id,
+          },
+        });
+      }
 
       // Return the rule with its conditions and alerts
       return tx.rule.findUnique({
         where: { id: newRule.id },
         include: {
-          conditions: true,
-          alerts: true,
+          conditions: {
+            include: {
+              flight: {
+                select: {
+                  flightNumber: true,
+                  departureAirport: true,
+                  arrivalAirport: true,
+                }
+              },
+              trackedFlight: {
+                select: {
+                  flightNumber: true,
+                  departureAirport: true,
+                  arrivalAirport: true,
+                }
+              }
+            }
+          },
+          alerts: {
+            include: {
+              flight: {
+                select: {
+                  flightNumber: true,
+                  departureAirport: true,
+                  arrivalAirport: true,
+                }
+              },
+              trackedFlight: {
+                select: {
+                  flightNumber: true,
+                  departureAirport: true,
+                  arrivalAirport: true,
+                }
+              }
+            }
+          },
         },
       });
     });

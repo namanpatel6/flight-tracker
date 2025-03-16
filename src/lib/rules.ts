@@ -35,6 +35,12 @@ export interface RuleCondition {
   value: string;
   ruleId: string;
   flightId?: string;
+  trackedFlightId?: string;
+  flight?: {
+    flightNumber: string;
+    departureAirport: string;
+    arrivalAirport: string;
+  };
 }
 
 export interface Alert {
@@ -43,11 +49,30 @@ export interface Alert {
   threshold?: number;
   isActive: boolean;
   userId: string;
-  flightId: string;
+  flightId?: string;
+  trackedFlightId?: string;
   ruleId?: string;
   createdAt: string;
   updatedAt: string;
+  flight?: {
+    flightNumber: string;
+    departureAirport: string;
+    arrivalAirport: string;
+  };
 }
+
+// Flight data schema
+export const flightDataSchema = z.object({
+  flightNumber: z.string(),
+  airline: z.string().optional(),
+  departureAirport: z.string(),
+  arrivalAirport: z.string(),
+  departureTime: z.string().optional(),
+  arrivalTime: z.string().optional(),
+  status: z.string().optional(),
+  gate: z.string().optional(),
+  terminal: z.string().optional(),
+});
 
 // Validation schemas
 export const createRuleConditionSchema = z.object({
@@ -65,7 +90,17 @@ export const createRuleConditionSchema = z.object({
     "changed"
   ]),
   value: z.string(),
+  trackedFlightId: z.string().optional(),
   flightId: z.string().optional(),
+  flightData: flightDataSchema.optional(),
+});
+
+export const createAlertSchema = z.object({
+  type: z.string(),
+  isActive: z.boolean().default(true),
+  trackedFlightId: z.string().optional(),
+  flightId: z.string().optional(),
+  flightData: flightDataSchema.optional(),
 });
 
 export const createRuleSchema = z.object({
@@ -74,12 +109,13 @@ export const createRuleSchema = z.object({
   operator: z.enum(["AND", "OR"]).default("AND"),
   schedule: z.string().optional(),
   conditions: z.array(createRuleConditionSchema).min(1, "At least one condition is required"),
-  alertTypes: z.array(z.string()).min(1, "At least one alert type is required"),
-  flightIds: z.array(z.string()).min(1, "At least one flight is required"),
+  alerts: z.array(createAlertSchema).min(1, "At least one alert is required"),
 });
 
 export type CreateRuleInput = z.infer<typeof createRuleSchema>;
 export type CreateRuleConditionInput = z.infer<typeof createRuleConditionSchema>;
+export type CreateAlertInput = z.infer<typeof createAlertSchema>;
+export type FlightDataInput = z.infer<typeof flightDataSchema>;
 
 // API functions
 export async function createRule(data: CreateRuleInput): Promise<Rule> {

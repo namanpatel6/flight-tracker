@@ -26,6 +26,7 @@ interface RuleCondition {
 interface Alert {
   id: string;
   type: string;
+  isActive: boolean;
   flight?: {
     flightNumber: string;
   } | null;
@@ -167,22 +168,35 @@ export default async function RuleDetailsPage({ params }: PageProps) {
                 {!rule.alerts || rule.alerts.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No alerts defined</p>
                 ) : (
-                  <ul className="space-y-2">
-                    {rule.alerts.map((alert: Alert) => (
-                      <li key={alert.id} className="text-sm border rounded-md p-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            {alert.type}
-                          </span>
-                          {alert.flight && (
-                            <Badge variant="outline">
-                              {alert.flight.flightNumber}
+                  <div className="space-y-4">
+                    <ul className="space-y-2">
+                      {rule.alerts.map((alert: Alert) => (
+                        <li key={alert.id} className="text-sm border rounded-md p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary">
+                                {alert.type.replace(/_/g, ' ')}
+                              </Badge>
+                              {alert.flight && (
+                                <Badge variant="outline">
+                                  {alert.flight.flightNumber}
+                                </Badge>
+                              )}
+                            </div>
+                            <Badge variant={alert.isActive ? "default" : "outline"} className="ml-2">
+                              {alert.isActive ? "Active" : "Inactive"}
                             </Badge>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            This alert will be triggered when the rule conditions are met.
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-muted-foreground">
+                      Alerts will be sent based on the rule conditions and the selected alert types.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>

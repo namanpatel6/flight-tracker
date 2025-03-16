@@ -98,6 +98,23 @@ export async function PATCH(
       operator: z.enum(["AND", "OR"]).optional(),
       isActive: z.boolean().optional(),
       schedule: z.string().nullable().optional(),
+      conditions: z.array(
+        z.object({
+          id: z.string().optional(),
+          field: z.string().min(1),
+          operator: z.string().min(1),
+          value: z.string().min(1),
+          flightId: z.string().nullable().optional(),
+        })
+      ).optional(),
+      alerts: z.array(
+        z.object({
+          id: z.string().optional(),
+          type: z.string().min(1),
+          isActive: z.boolean().default(true),
+          flightId: z.string().nullable().optional(),
+        })
+      ).optional(),
     });
 
     const body = await request.json();
@@ -110,73 +127,190 @@ export async function PATCH(
       );
     }
 
-    // Update the rule
-    const updateData = validatedData.data;
-    
-    // Convert camelCase to snake_case for database fields
-    const dbUpdateData: Record<string, any> = {};
-    if (updateData.name !== undefined) dbUpdateData.name = updateData.name;
-    if (updateData.description !== undefined) dbUpdateData.description = updateData.description;
-    if (updateData.operator !== undefined) dbUpdateData.operator = updateData.operator;
-    if (updateData.isActive !== undefined) dbUpdateData["isActive"] = updateData.isActive;
-    if (updateData.schedule !== undefined) dbUpdateData.schedule = updateData.schedule;
-
-    // Build the SQL query dynamically based on what fields are being updated
-    let setClause = Object.entries(dbUpdateData)
-      .map(([key, value]) => {
-        if (value === null) {
-          return `"${key}" = NULL`;
+    // Update the rule using a transaction to ensure all related records are updated
+    const updatedRule = await prisma.$transaction(async (tx) => {
+      // 1. Update the basic rule information
+      const updateData = validatedData.data;
+      const basicUpdateData: Record<string, any> = {};
+      
+      if (updateData.name !== undefined) basicUpdateData.name = updateData.name;
+      if (updateData.description !== undefined) basicUpdateData.description = updateData.description;
+      if (updateData.operator !== undefined) basicUpdateData.operator = updateData.operator;
+      if (updateData.isActive !== undefined) basicUpdateData.isActive = updateData.isActive;
+      if (updateData.schedule !== undefined) basicUpdateData.schedule = updateData.schedule;
+      
+      // Update the rule if there are basic fields to update
+      if (Object.keys(basicUpdateData).length > 0) {
+        await tx.rule.update({
+          where: { id },
+          data: {
+            ...basicUpdateData,
+            updatedAt: new Date(),
+          },
+        });
+      }
+      
+      // 2. Handle conditions if provided
+      if (updateData.conditions) {
+        // Get existing conditions
+        const existingConditions = await tx.ruleCondition.findMany({
+          where: { ruleId: id },
+        });
+        
+        // Identify conditions to create, update, or delete
+        const existingConditionIds = existingConditions.map(c => c.id);
+        const updatedConditionIds = updateData.conditions
+          .filter(c => c.id)
+          .map(c => c.id as string);
+        
+        // Delete conditions that are no longer in the updated list
+        const conditionsToDelete = existingConditionIds.filter(
+          id => !updatedConditionIds.includes(id)
+        );
+        
+        if (conditionsToDelete.length > 0) {
+          await tx.ruleCondition.deleteMany({
+            where: {
+              id: { in: conditionsToDelete },
+            },
+          });
         }
-        return `"${key}" = ${typeof value === 'string' ? `'${value}'` : value}`;
-      })
-      .join(", ");
+        
+        // Update or create conditions
+        for (const condition of updateData.conditions) {
+          if (condition.id && existingConditionIds.includes(condition.id)) {
+            // Update existing condition
+            const conditionUpdateData: any = {
+              field: condition.field,
+              operator: condition.operator,
+              value: condition.value,
+            };
+            
+            if (condition.flightId !== undefined) {
+              conditionUpdateData.flightId = condition.flightId;
+            }
+            
+            await tx.ruleCondition.update({
+              where: { id: condition.id },
+              data: conditionUpdateData,
+            });
+          } else {
+            // Create new condition
+            const conditionCreateData: any = {
+              field: condition.field,
+              operator: condition.operator,
+              value: condition.value,
+              ruleId: id,
+            };
+            
+            if (condition.flightId !== undefined) {
+              conditionCreateData.flightId = condition.flightId;
+            }
+            
+            await tx.ruleCondition.create({
+              data: conditionCreateData,
+            });
+          }
+        }
+      }
+      
+      // 3. Handle alerts if provided
+      if (updateData.alerts) {
+        // Get existing alerts
+        const existingAlerts = await tx.alert.findMany({
+          where: { ruleId: id },
+        });
+        
+        // Identify alerts to create, update, or delete
+        const existingAlertIds = existingAlerts.map(a => a.id);
+        const updatedAlertIds = updateData.alerts
+          .filter(a => a.id)
+          .map(a => a.id as string);
+        
+        // Delete alerts that are no longer in the updated list
+        const alertsToDelete = existingAlertIds.filter(
+          id => !updatedAlertIds.includes(id)
+        );
+        
+        if (alertsToDelete.length > 0) {
+          await tx.alert.deleteMany({
+            where: {
+              id: { in: alertsToDelete },
+            },
+          });
+        }
+        
+        // Update or create alerts
+        for (const alert of updateData.alerts) {
+          if (alert.id && existingAlertIds.includes(alert.id)) {
+            // Update existing alert
+            const alertUpdateData: any = {
+              type: alert.type,
+              isActive: alert.isActive,
+            };
+            
+            if (alert.flightId !== undefined) {
+              alertUpdateData.flightId = alert.flightId;
+            }
+            
+            await tx.alert.update({
+              where: { id: alert.id },
+              data: alertUpdateData,
+            });
+          } else {
+            // Create new alert
+            const alertCreateData: any = {
+              type: alert.type,
+              isActive: alert.isActive,
+              ruleId: id,
+              userId: session.user.id,
+            };
+            
+            if (alert.flightId !== undefined) {
+              alertCreateData.flightId = alert.flightId;
+            }
+            
+            await tx.alert.create({
+              data: alertCreateData,
+            });
+          }
+        }
+      }
+      
+      // Fetch the updated rule with its conditions and alerts
+      return tx.$queryRaw`
+        SELECT r.*, 
+               json_agg(DISTINCT jsonb_build_object(
+                 'id', rc.id,
+                 'field', rc.field,
+                 'operator', rc.operator,
+                 'value', rc.value,
+                 'flight', CASE WHEN f.id IS NOT NULL THEN jsonb_build_object('id', f.id, 'flightNumber', f."flightNumber") ELSE NULL END
+               )) AS conditions,
+               json_agg(DISTINCT jsonb_build_object(
+                 'id', a.id,
+                 'type', a.type,
+                 'isActive', a."isActive",
+                 'flight', CASE WHEN af.id IS NOT NULL THEN jsonb_build_object('id', af.id, 'flightNumber', af."flightNumber") ELSE NULL END
+               )) AS alerts
+        FROM "Rule" r
+        LEFT JOIN "RuleCondition" rc ON r.id = rc."ruleId"
+        LEFT JOIN "TrackedFlight" f ON rc."flightId" = f.id
+        LEFT JOIN "Alert" a ON r.id = a."ruleId"
+        LEFT JOIN "TrackedFlight" af ON a."flightId" = af.id
+        WHERE r.id = ${id} AND r."userId" = ${session.user.id}
+        GROUP BY r.id
+      `;
+    });
 
-    if (!setClause) {
-      return NextResponse.json(
-        { message: "No fields to update" },
-        { status: 400 }
-      );
-    }
-
-    const updatedRule = await prisma.$executeRawUnsafe(`
-      UPDATE "Rule"
-      SET ${setClause}, "updatedAt" = NOW()
-      WHERE id = '${id}' AND "userId" = '${session.user.id}'
-      RETURNING id, name, description, operator, "isActive", schedule, "createdAt", "updatedAt"
-    `);
-
-    // Fetch the updated rule
-    const rule = await prisma.$queryRaw`
-      SELECT r.*, 
-             json_agg(DISTINCT jsonb_build_object(
-               'id', rc.id,
-               'field', rc.field,
-               'operator', rc.operator,
-               'value', rc.value,
-               'flight', CASE WHEN f.id IS NOT NULL THEN jsonb_build_object('id', f.id, 'flightNumber', f."flightNumber") ELSE NULL END
-             )) AS conditions,
-             json_agg(DISTINCT jsonb_build_object(
-               'id', a.id,
-               'type', a.type,
-               'flight', CASE WHEN af.id IS NOT NULL THEN jsonb_build_object('id', af.id, 'flightNumber', af."flightNumber") ELSE NULL END
-             )) AS alerts
-      FROM "Rule" r
-      LEFT JOIN "RuleCondition" rc ON r.id = rc."ruleId"
-      LEFT JOIN "TrackedFlight" f ON rc."flightId" = f.id
-      LEFT JOIN "Alert" a ON r.id = a."ruleId"
-      LEFT JOIN "TrackedFlight" af ON a."flightId" = af.id
-      WHERE r.id = ${id} AND r."userId" = ${session.user.id}
-      GROUP BY r.id
-    `;
-
-    if (!rule || !Array.isArray(rule) || rule.length === 0) {
+    if (!updatedRule || !Array.isArray(updatedRule) || updatedRule.length === 0) {
       return NextResponse.json(
         { message: "Error retrieving updated rule" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json(rule[0]);
+    return NextResponse.json(updatedRule[0]);
   } catch (error) {
     console.error("Error updating rule:", error);
     return NextResponse.json(
