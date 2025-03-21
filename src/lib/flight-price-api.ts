@@ -1,8 +1,8 @@
 import { Flight, Price } from "@/types/flight";
 
 // Air Scraper API configuration
-const API_BASE_URL = "https://booking-com15.p.rapidapi.com/api/v1/flights";
-const API_V2_BASE_URL = "https://booking-com15.p.rapidapi.com/api/v2/flights";
+const API_BASE_URL = "https://sky-scrapper.p.rapidapi.com/api/v1/flights";
+const API_V2_BASE_URL = "https://sky-scrapper.p.rapidapi.com/api/v2/flights";
 const API_KEY = process.env.AIR_SCRAPER_API_KEY || "";
 const API_HOST = process.env.AIR_SCRAPER_API_HOST || "";
 
@@ -100,7 +100,7 @@ export async function searchFlightPrice(
     console.log(`Searching flight prices: ${depIata}(${depEntityId}) to ${arrIata}(${arrEntityId}) on ${formattedDate}`);
     
     // Search for flights
-    const url = `${API_V2_BASE_URL}/searchFlights?fromEntityId=${depEntityId}&toEntityId=${arrEntityId}&departDate=${formattedDate}&returnDate=&adults=1&children=0&infants=0&cabinClass=ECONOMY&currency=USD&countryCode=US`;
+    const url = `${API_V2_BASE_URL}/searchFlights?originSkyId=${depIata}&destinationSkyId=${arrIata}&originEntityId=${depEntityId}&destinationEntityId=${arrEntityId}&date=${formattedDate}&returnDate=&adults=1&children=0&infants=0&cabinClass=economy&currency=USD&countryCode=US`;
     
     const response = await fetch(url, {
       method: 'GET',
