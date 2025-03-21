@@ -34,10 +34,17 @@ export interface Aircraft {
   model?: string;
 }
 
+export interface Price {
+  amount: number;
+  currency: string;
+  formatted: string;
+}
+
 export interface Flight {
   id: string;
   flight: FlightIdentifier;
   flight_status: FlightStatus;
+  flight_date?: string;
   airline: Airline;
   departure: AirportInfo;
   arrival: AirportInfo;
@@ -52,4 +59,5 @@ export interface Flight {
     speed_vertical: number;
     is_ground: boolean;
   };
+  price?: Price;
 } 

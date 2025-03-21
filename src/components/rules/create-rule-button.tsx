@@ -53,6 +53,7 @@ const ALERT_TYPES = [
   { id: 'GATE_CHANGE', label: 'Gate Change' },
   { id: 'DEPARTURE', label: 'Departure Update' },
   { id: 'ARRIVAL', label: 'Arrival Update' },
+  { id: 'PRICE_CHANGE', label: 'Price Change' },
 ];
 
 // Define condition fields
@@ -63,6 +64,7 @@ const CONDITION_FIELDS = [
   { id: 'gate', label: 'Gate' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'flightNumber', label: 'Flight Number' },
+  { id: 'price', label: 'Price' },
 ];
 
 // Define condition operators
@@ -105,15 +107,26 @@ const selectedFlightSchema = z.object({
   arrivalAirport: z.string(),
   departureTime: z.string().optional(),
   arrivalTime: z.string().optional(),
-  isSelected: z.boolean().default(true),
+  price: z.string().optional(),
+  isSelected: z.boolean(),
 });
+
+// Map condition fields to relevant alert types for auto-selection
+const FIELD_TO_ALERT_TYPE = {
+  'status': 'STATUS_CHANGE',
+  'departureTime': 'DEPARTURE',
+  'arrivalTime': 'ARRIVAL',
+  'gate': 'GATE_CHANGE',
+  'terminal': 'GATE_CHANGE',
+  'flightNumber': 'STATUS_CHANGE',
+  'price': 'PRICE_CHANGE',
+};
 
 // Condition schema
 const conditionSchema = z.object({
-  field: z.string().min(1, 'Field is required'),
-  operator: z.string().min(1, 'Operator is required'),
-  value: z.string().min(1, 'Value is required'),
-  flightId: z.string().optional(),
+  field: z.string(),
+  operator: z.string(),
+  value: z.string(),
   flightData: z.object({
     flightNumber: z.string(),
     airline: z.string().optional(),
@@ -121,14 +134,14 @@ const conditionSchema = z.object({
     arrivalAirport: z.string(),
     departureTime: z.string().optional(),
     arrivalTime: z.string().optional(),
-  }).optional(),
+    price: z.string().optional(),
+  }),
 });
 
 // Alert schema
 const alertSchema = z.object({
-  type: z.string().min(1, 'Alert type is required'),
-  isActive: z.boolean().default(true),
-  flightId: z.string().optional(),
+  type: z.string(),
+  isActive: z.boolean(),
   flightData: z.object({
     flightNumber: z.string(),
     airline: z.string().optional(),
@@ -136,7 +149,8 @@ const alertSchema = z.object({
     arrivalAirport: z.string(),
     departureTime: z.string().optional(),
     arrivalTime: z.string().optional(),
-  }).optional(),
+    price: z.string().optional(),
+  }),
 });
 
 type SelectedFlight = z.infer<typeof selectedFlightSchema>;
@@ -217,36 +231,65 @@ export function CreateRuleButton() {
 
   const handleFlightSearch = async (data: z.infer<typeof flightSearchSchema>) => {
     setSearchLoading(true);
+    setSearchResults([]);
+    
     try {
       const params = new URLSearchParams();
       
+      // Limit parameters to only those supported by the Flight Radar API
       if (data.searchType === 'flightNumber') {
-        if (data.flightNumber) params.append('flight_iata', data.flightNumber);
-        if (data.airline) params.append('airline_iata', data.airline);
+        if (data.flightNumber) params.append('flight_iata', data.flightNumber.trim());
+        // FlightRadar API doesn't directly support airline IATA filtering without flight number
       } else {
-        if (data.fromAirport) params.append('dep_iata', data.fromAirport);
-        if (data.toAirport) params.append('arr_iata', data.toAirport);
+        // For route search
+        if (data.fromAirport) params.append('dep_iata', data.fromAirport.trim());
+        if (data.toAirport) params.append('arr_iata', data.toAirport.trim());
       }
 
+      // Only append date if provided
       if (data.departureDate) {
-        params.append('arr_scheduled_time_dep', data.departureDate.toISOString().split('T')[0]);
+        params.append('flight_date', data.departureDate.toISOString().split('T')[0]);
       }
       
-      const response = await fetch(`/api/flights/search?${params.toString()}`);
+      // Check if we have at least one search parameter
+      if (params.toString() === '') {
+        toast.error('Please provide at least one search parameter');
+        setSearchLoading(false);
+        return;
+      }
+      
+      // Set a reasonable timeout for the search request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const response = await fetch(`/api/flights/search?${params.toString()}`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
-        throw new Error('Failed to search flights');
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || `Error: ${response.status}`);
       }
       
       const responseData = await response.json();
       setSearchResults(responseData.flights || []);
       
-      if (responseData.flights?.length === 0) {
+      if (!responseData.flights || responseData.flights.length === 0) {
         toast.info('No flights found matching your search criteria');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error searching flights:', error);
-      toast.error('Failed to search flights');
+      
+      // Provide specific error messages based on the error type
+      if (error.name === 'AbortError') {
+        toast.error('Search request timed out. Please try again with more specific search criteria.');
+      } else if (error.message.includes('429')) {
+        toast.error('Too many requests. Please wait a moment before trying again.');
+      } else {
+        toast.error(`Failed to search flights: ${error.message}`);
+      }
     } finally {
       setSearchLoading(false);
     }
@@ -277,6 +320,7 @@ export function CreateRuleButton() {
         arrivalAirport: flight.arrival.iata,
         departureTime: flight.departure.scheduled ? new Date(flight.departure.scheduled).toISOString() : undefined,
         arrivalTime: flight.arrival.scheduled ? new Date(flight.arrival.scheduled).toISOString() : undefined,
+        price: flight.price?.formatted || undefined,
         isSelected: true,
       };
       
@@ -304,6 +348,7 @@ export function CreateRuleButton() {
         arrivalAirport: firstFlight.arrivalAirport,
         departureTime: firstFlight.departureTime,
         arrivalTime: firstFlight.arrivalTime,
+        price: firstFlight.price,
       }
     };
     
@@ -336,6 +381,7 @@ export function CreateRuleButton() {
           arrivalAirport: selectedFlight.arrivalAirport,
           departureTime: selectedFlight.departureTime,
           arrivalTime: selectedFlight.arrivalTime,
+          price: selectedFlight.price,
         } 
       };
       setConditions(newConditions);
@@ -360,6 +406,7 @@ export function CreateRuleButton() {
         arrivalAirport: flight.arrivalAirport,
         departureTime: flight.departureTime,
         arrivalTime: flight.arrivalTime,
+        price: flight.price,
       }
     }));
     
@@ -387,15 +434,29 @@ export function CreateRuleButton() {
       description: 'Search and select flights to apply this rule to',
       form: flightSearchForm,
       validate: async () => {
-        return selectedFlights.length > 0;
+        // Check if flights are selected, specifically for this step
+        const hasSelectedFlights = selectedFlights.length > 0;
+        
+        if (!hasSelectedFlights) {
+          // Return false to trigger the error message
+          return false;
+        }
+        
+        // Flights are selected, validation passes
+        return true;
       },
     },
     {
       title: 'Conditions',
       description: 'Define the conditions for your rule',
       validate: async () => {
+        // Check if there are conditions
+        if (conditions.length === 0) {
+          return false;
+        }
+        
         // Validate that all conditions have required fields
-        return conditions.length > 0 && conditions.every(c => c.field && c.operator && c.value);
+        return conditions.every(c => c.field && c.operator && c.value);
       },
     },
     {
@@ -408,17 +469,43 @@ export function CreateRuleButton() {
   ];
 
   const handleNext = async () => {
-    const currentStepObj = steps[currentStep];
-    const isValid = await currentStepObj.validate();
-    
-    if (isValid) {
-      setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
-    } else if (currentStep === 1 && selectedFlights.length === 0) {
-      toast.error('Please select at least one flight before continuing');
-    } else if (currentStep === 2 && conditions.length === 0) {
-      toast.error('Please add at least one condition before continuing');
-    } else if (currentStep === 3 && alerts.length === 0) {
-      toast.error('Please add at least one alert before continuing');
+    try {
+      // Show loading state while validating
+      setLoading(true);
+      
+      const currentStepObj = steps[currentStep];
+      let isValid = false;
+      
+      try {
+        // Set a timeout to prevent UI freeze during validation
+        const validationPromise = currentStepObj.validate();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Validation timed out')), 5000)
+        );
+        
+        isValid = await Promise.race([validationPromise, timeoutPromise]) as boolean;
+      } catch (error) {
+        console.error('Validation error:', error);
+        isValid = false;
+      }
+      
+      if (isValid) {
+        setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
+      } else if (currentStep === 1 && selectedFlights.length === 0) {
+        toast.error('Please select at least one flight before continuing');
+      } else if (currentStep === 2 && conditions.length === 0) {
+        toast.error('Please add at least one condition before continuing');
+      } else if (currentStep === 3 && alerts.length === 0) {
+        toast.error('Please add at least one alert before continuing');
+      } else {
+        // Generic validation error message if none of the specific cases match
+        toast.error('Please complete all required fields before continuing');
+      }
+    } catch (error) {
+      console.error('Error in handleNext:', error);
+      toast.error('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -484,6 +571,17 @@ export function CreateRuleButton() {
     setConditions([]);
     setAlerts([]);
   };
+
+  // Clean up when changing steps
+  useEffect(() => {
+    // Clear any lingering timeouts or operations when steps change
+    return () => {
+      // This cleanup function will run when the step changes
+      if (searchLoading) {
+        setSearchLoading(false);
+      }
+    };
+  }, [currentStep]);
 
   return (
     <Dialog 
@@ -729,8 +827,13 @@ export function CreateRuleButton() {
                   {searchResults.length > 0 && (
                     <div className="mt-4 space-y-2">
                       <h3 className="text-sm font-medium">Search Results ({searchResults.length})</h3>
+                      {searchResults.length > 20 && (
+                        <p className="text-xs text-muted-foreground">
+                          Showing first 20 results. Please refine your search if needed.
+                        </p>
+                      )}
                       <div className="max-h-60 overflow-y-auto space-y-2">
-                        {searchResults.map((flight, index) => {
+                        {searchResults.slice(0, 20).map((flight, index) => {
                           const isSelected = selectedFlights.some(f => 
                             f.flightNumber === flight.flight.iata && 
                             f.departureAirport === flight.departure.iata &&
@@ -739,7 +842,7 @@ export function CreateRuleButton() {
                           
                           return (
                             <div 
-                              key={index} 
+                              key={`search-result-${index}`}
                               className={`p-2 border rounded-md cursor-pointer hover:bg-muted ${isSelected ? 'bg-muted' : ''}`}
                               onClick={() => handleSelectFlight(flight)}
                             >

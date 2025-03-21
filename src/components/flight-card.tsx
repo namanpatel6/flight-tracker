@@ -41,6 +41,13 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
             </div>
           </div>
 
+          {/* Display price information if available */}
+          {flight.price && (
+            <div className="mb-4 py-1 px-3 bg-green-50 border border-green-200 rounded-md inline-flex items-center">
+              <span className="font-medium text-green-700">{flight.price.formatted}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
             <div className="md:col-span-3 space-y-1">
               <div className="text-sm text-muted-foreground">Departure</div>

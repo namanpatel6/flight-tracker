@@ -64,6 +64,7 @@ model TrackedFlight {
   departureTime    DateTime?
   arrivalTime      DateTime?
   status           String?
+  price            String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   userId           String
@@ -87,6 +88,7 @@ model Flight {
   departureTime    DateTime?
   arrivalTime      DateTime?
   status           String?
+  price            String?
   gate             String?
   terminal         String?
   createdAt        DateTime        @default(now())

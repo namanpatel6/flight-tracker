@@ -5,40 +5,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface SearchPageProps {
   searchParams: {
-    type?: string;
-    flightNumber?: string;
-    airline?: string;
-    from?: string;
-    to?: string;
-    departureDate?: string;
-    returnDate?: string;
-    tripType?: string;
-    passengers?: string;
-    cabinClass?: string;
-    directOnly?: string;
-    flexible?: string;
+    flight_iata?: string;
+    airline_iata?: string;
+    flight_date?: string;
+    include_prices?: string;
   };
 }
 
-export default function ResultsPage({ searchParams }: SearchPageProps) {
-  // Destructure searchParams to avoid the Next.js error
+export default async function ResultsPage({ searchParams }: SearchPageProps) {
+  // Await searchParams to avoid the Next.js error
+  const params = await Promise.resolve(searchParams);
+  
+  // Destructure params after awaiting
   const {
-    flightNumber,
-    airline,
-    from,
-    to,
-    departureDate,
-    returnDate
-  } = searchParams;
+    flight_iata,
+    airline_iata,
+    flight_date,
+    include_prices
+  } = params;
 
   // Safe way to check if we have any search params without using Object methods directly
   const hasSearchParams = !!(
-    flightNumber || 
-    airline || 
-    from || 
-    to || 
-    departureDate ||
-    returnDate
+    flight_iata || 
+    airline_iata || 
+    flight_date
   );
 
   return (
@@ -62,7 +52,7 @@ export default function ResultsPage({ searchParams }: SearchPageProps) {
             <div className="bg-white p-6 rounded-lg shadow-md text-center">
               <h2 className="text-xl font-semibold mb-2">No Search Criteria</h2>
               <p className="text-gray-600">
-                Use the search form to find flights by flight number or route.
+                Use the search form to find flights by flight number.
               </p>
             </div>
           )}

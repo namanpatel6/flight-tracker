@@ -10,7 +10,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, formatTime, calculateDuration } from "@/lib/utils";
 import { AlertCircle, Bell, BellOff, Plane, Calendar, Clock, MapPin } from "lucide-react";
-import { Alert as AlertType, createAlert, deleteAlert, getUserAlerts } from "@/lib/alerts";
+import { getTrackedFlights, trackFlight, untrackFlight } from "@/lib/flight-api";
 
 interface FlightDetailsProps {
   flight: Flight;
@@ -20,22 +20,18 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
   const { data: session } = useSession();
   const router = useRouter();
   const [isTracking, setIsTracking] = useState(false);
-  const [alertId, setAlertId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (session?.user) {
+    if (session?.user?.id) {
       const checkIfTracking = async () => {
         try {
-          const alerts = await getUserAlerts();
-          const flightAlert = alerts.find((alert: AlertType) => alert.flightId === flight.id);
-          if (flightAlert) {
-            setIsTracking(true);
-            setAlertId(flightAlert.id);
-          }
+          const trackedFlights = await getTrackedFlights(session.user.id);
+          const isFlightTracked = trackedFlights.some(tf => tf.id === flight.id);
+          setIsTracking(isFlightTracked);
         } catch (err) {
-          console.error("Error checking alert status:", err);
+          console.error("Error checking tracking status:", err);
         }
       };
       
@@ -44,7 +40,7 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
   }, [session, flight.id]);
 
   const handleTrackFlight = async () => {
-    if (!session?.user) {
+    if (!session?.user?.id) {
       router.push("/api/auth/signin");
       return;
     }
@@ -53,18 +49,20 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
     setError(null);
 
     try {
-      if (isTracking && alertId) {
-        await deleteAlert(alertId);
-        setIsTracking(false);
-        setAlertId(null);
+      if (isTracking) {
+        const success = await untrackFlight(session.user.id, flight.id);
+        if (success) {
+          setIsTracking(false);
+        } else {
+          throw new Error("Failed to untrack flight");
+        }
       } else {
-        const alert = await createAlert({
-          flightId: flight.id,
-          type: "STATUS_CHANGE",
-          active: true
-        });
-        setIsTracking(true);
-        setAlertId(alert.id);
+        const success = await trackFlight(session.user.id, flight.id);
+        if (success) {
+          setIsTracking(true);
+        } else {
+          throw new Error("Failed to track flight");
+        }
       }
     } catch (err) {
       setError("Failed to update tracking status. Please try again.");
@@ -255,11 +253,6 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
                     <dd className="mt-1">{flight.aircraft.registration}</dd>
                   </div>
                 )}
-                {!flight.aircraft?.model && !flight.aircraft?.registration && (
-                  <div className="col-span-2 text-center text-muted-foreground">
-                    Aircraft information is not available for this flight.
-                  </div>
-                )}
               </dl>
             </CardContent>
           </Card>
@@ -268,32 +261,9 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
           <TabsContent value="live" className="space-y-4">
             <Card>
               <CardContent className="pt-6">
-                <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <dt className="text-sm font-medium text-muted-foreground">Last Updated</dt>
-                    <dd className="mt-1">{new Date(flight.live.updated).toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-muted-foreground">Altitude</dt>
-                    <dd className="mt-1">{flight.live.altitude} feet</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-muted-foreground">Speed</dt>
-                    <dd className="mt-1">{flight.live.speed_horizontal} knots</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-muted-foreground">Direction</dt>
-                    <dd className="mt-1">{flight.live.direction}°</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-muted-foreground">Position</dt>
-                    <dd className="mt-1">Lat: {flight.live.latitude}, Long: {flight.live.longitude}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-muted-foreground">Status</dt>
-                    <dd className="mt-1">{flight.live.is_ground ? 'On Ground' : 'In Air'}</dd>
-                  </div>
-                </dl>
+                <div className="text-center p-8">
+                  <p className="text-muted-foreground">Live tracking data will be displayed here.</p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

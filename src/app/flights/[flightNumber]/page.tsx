@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { getFlightDetails } from "@/lib/flight-api";
 import { FlightDetails } from "./flight-details";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -10,25 +9,56 @@ interface FlightDetailsPageProps {
   };
 }
 
+export const metadata = {
+  title: "Flight Details",
+  description: "Track and view detailed information about a specific flight.",
+};
+
 export default async function FlightDetailsPage({ params }: FlightDetailsPageProps) {
-  const { flightNumber } = params;
+  // Await params before accessing properties
+  const paramsObj = await Promise.resolve(params);
+  const flightNumber = paramsObj.flightNumber;
   
-  // Get flight details
-  const flight = await getFlightDetails(flightNumber);
-  
-  if (!flight) {
+  try {
+    // For server components, use an absolute URL for fetch
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    
+    const apiUrl = new URL(`/api/flights/${encodeURIComponent(flightNumber)}`, baseUrl).toString();
+    
+    const flightResponse = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      next: { revalidate: 60 }, // Revalidate data every 60 seconds
+    });
+    
+    if (!flightResponse.ok) {
+      console.error(`Failed to fetch flight details: ${flightResponse.statusText}`);
+      notFound();
+    }
+    
+    const { flight } = await flightResponse.json();
+    
+    if (!flight) {
+      notFound();
+    }
+    
+    return (
+      <div className="container mx-auto py-10">
+        <h1 className="text-3xl font-bold mb-6">Flight Details</h1>
+        
+        <Suspense fallback={<FlightDetailsSkeleton />}>
+          <FlightDetails flight={flight} />
+        </Suspense>
+      </div>
+    );
+  } catch (error) {
+    console.error("Error fetching flight details:", error);
     notFound();
   }
-  
-  return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">Flight Details</h1>
-      
-      <Suspense fallback={<FlightDetailsSkeleton />}>
-        <FlightDetails flight={flight} />
-      </Suspense>
-    </div>
-  );
 }
 
 function FlightDetailsSkeleton() {

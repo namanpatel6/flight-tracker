@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getFlightDetails } from "@/lib/flight-api";
+import { getFlightDetails } from "@/lib/flight-radar-api";
 
 interface RouteParams {
   params: {
@@ -9,7 +9,9 @@ interface RouteParams {
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
-    const { flightNumber } = params;
+    // Properly await params before accessing properties
+    const paramsObj = await Promise.resolve(params);
+    const flightNumber = paramsObj.flightNumber;
     
     if (!flightNumber) {
       return NextResponse.json(

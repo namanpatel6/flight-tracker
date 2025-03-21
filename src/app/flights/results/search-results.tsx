@@ -10,18 +10,10 @@ import { AlertCircle } from "lucide-react";
 import { getTrackedFlights, trackFlight, untrackFlight } from "@/lib/flight-api";
 
 interface SearchParamsType {
-  type?: string;
-  flightNumber?: string;
-  airline?: string;
-  from?: string;
-  to?: string;
-  departureDate?: string;
-  returnDate?: string;
-  tripType?: string;
-  passengers?: string;
-  cabinClass?: string;
-  directOnly?: string;
-  flexible?: string;
+  flight_iata?: string;
+  airline_iata?: string;
+  flight_date?: string;
+  include_prices?: string;
 }
 
 interface SearchResultsProps {
@@ -68,11 +60,9 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
         
         // Check if we have any search parameters to prevent unnecessary API calls
         const hasSearchParams = !!(
-          resolvedParams.flightNumber || 
-          resolvedParams.airline || 
-          resolvedParams.from || 
-          resolvedParams.to || 
-          resolvedParams.departureDate
+          resolvedParams.flight_iata || 
+          resolvedParams.airline_iata || 
+          resolvedParams.flight_date
         );
         
         if (!hasSearchParams) {
@@ -85,28 +75,20 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
         // Build query parameters for the API call
         const queryParams = new URLSearchParams();
         
-        if (resolvedParams.flightNumber) {
-          queryParams.append("flight_iata", resolvedParams.flightNumber);
+        if (resolvedParams.flight_iata) {
+          queryParams.append("flight_iata", resolvedParams.flight_iata);
         }
         
-        if (resolvedParams.airline) {
-          queryParams.append("airline_iata", resolvedParams.airline);
+        if (resolvedParams.airline_iata) {
+          queryParams.append("airline_iata", resolvedParams.airline_iata);
         }
         
-        if (resolvedParams.from) {
-          queryParams.append("dep_iata", resolvedParams.from);
+        if (resolvedParams.flight_date) {
+          queryParams.append("flight_date", resolvedParams.flight_date);
         }
         
-        if (resolvedParams.to) {
-          queryParams.append("arr_iata", resolvedParams.to);
-        }
-        
-        if (resolvedParams.departureDate) {
-          queryParams.append("arr_scheduled_time_dep", resolvedParams.departureDate);
-        }
-        
-        if (resolvedParams.returnDate) {
-          queryParams.append("arr_scheduled_time_arr", resolvedParams.returnDate);
+        if (resolvedParams.include_prices) {
+          queryParams.append("include_prices", resolvedParams.include_prices);
         }
         
         console.log("Making API request with params:", Object.fromEntries(queryParams.entries()));
@@ -154,11 +136,33 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
       return;
     }
 
+    // Find the flight with the given ID
+    const flight = flights.find(f => f.id === flightId);
+    if (!flight) {
+      setError("Flight not found");
+      return;
+    }
+
     try {
-      const success = await trackFlight(session.user.id, flightId);
-      if (success) {
-        setTrackedFlightIds(prev => new Set([...prev, flightId]));
+      // Send a POST request directly to the tracked-flights API with price information
+      const response = await fetch('/api/tracked-flights', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          flightId,
+          price: flight.price?.formatted 
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to track flight: ${response.statusText}`);
       }
+      
+      // Update local state to reflect the change
+      setTrackedFlightIds(prev => new Set([...prev, flightId]));
+      
     } catch (err) {
       console.error("Error tracking flight:", err);
       setError("Failed to track flight. Please try again.");

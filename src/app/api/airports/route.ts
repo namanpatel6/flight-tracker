@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchAirports } from '@/lib/flight-api';
-import fs from 'fs';
-import path from 'path';
+import { fetchAirports } from '@/lib/flight-radar-api';
 
 /**
  * GET handler for /api/airports
@@ -9,14 +7,10 @@ import path from 'path';
  */
 export async function GET() {
   try {
-    
-    // If direct file reading fails, use the fetchAirports function
-    console.log("Falling back to fetchAirports function");
     const airports = await fetchAirports();
     return NextResponse.json(airports);
   } catch (error: any) {
-    console.error("Error in airports API route:", error);
-    
+    console.error("Airports API error:", error);
     return NextResponse.json(
       { message: error.message || "Failed to fetch airports" },
       { status: 500 }

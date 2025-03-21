@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchAirlines } from '@/lib/flight-api';
+import { fetchAirlines } from '@/lib/flight-radar-api';
 
 /**
  * GET handler for /api/airlines

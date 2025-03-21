@@ -60,10 +60,13 @@ export function Dropdown({
   }, [isOpen]);
 
   // Filter options based on search query
-  const filteredOptions = options.filter(option => 
-    option.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (option.code && option.code.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredOptions = options.filter(option => {
+    const searchLower = searchQuery.toLowerCase();
+    const labelLower = option.label.toLowerCase();
+    const codeLower = option.code?.toLowerCase() || '';
+    
+    return labelLower.includes(searchLower) || codeLower.includes(searchLower);
+  });
 
   // Clear search query when dropdown closes
   useEffect(() => {
@@ -71,6 +74,11 @@ export function Dropdown({
       setSearchQuery("");
     }
   }, [isOpen]);
+
+  // Ensure each option has a unique key by combining all properties and adding index
+  const getOptionKey = (option: DropdownOption, index: number): string => {
+    return `${option.value}_${option.code || ''}_${index}`;
+  };
 
   return (
     <div className={cn("relative w-full", className)} ref={dropdownRef}>
@@ -127,9 +135,9 @@ export function Dropdown({
                 {noResultsText}
               </div>
             ) : (
-              filteredOptions.map((option) => (
+              filteredOptions.map((option, index) => (
                 <div
-                  key={option.value}
+                  key={getOptionKey(option, index)}
                   className={cn(
                     "relative flex cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
                     value?.value === option.value && "bg-accent text-accent-foreground"

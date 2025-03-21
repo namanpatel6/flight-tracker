@@ -1,5 +1,6 @@
 import { Flight, FlightStatus } from "@/types/flight";
 import { z } from "zod";
+import { getFlightDetails as getRadarFlightDetails } from "./flight-radar-api";
 
 // AviationStack API base URL
 const API_BASE_URL = "https://api.aviationstack.com/v1";
@@ -313,35 +314,14 @@ export async function searchFlights(params: {
 }
 
 /**
- * Get details for a specific flight by flight number
+ * Get details for a specific flight
  * @param flightNumber The flight number (IATA or ICAO code)
  * @returns Flight details or null if not found
  */
 export async function getFlightDetails(flightNumber: string): Promise<Flight | null> {
   try {
-    // Build query parameters
-    const queryParams = new URLSearchParams();
-    queryParams.append("access_key", API_KEY);
-    queryParams.append("flight_iata", flightNumber);
-    
-    // Make API request
-    const response = await fetch(`${API_BASE_URL}/flights?${queryParams.toString()}`);
-    
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Reset counter before processing
-    uniqueIdCounter = 0;
-    
-    // Return the first matching flight or null if none found
-    if (data.data && data.data.length > 0) {
-      return transformApiResponseToFlight(data.data[0]);
-    }
-    
-    return null;
+    // Use the Flight Radar API to get flight details
+    return await getRadarFlightDetails(flightNumber);
   } catch (error) {
     console.error("Error getting flight details:", error);
     return null;
@@ -350,50 +330,114 @@ export async function getFlightDetails(flightNumber: string): Promise<Flight | n
 
 /**
  * Get tracked flights for a user
- * @param userId The user ID
+ * @param userId The user's ID
  * @returns Array of tracked flights
  */
 export async function getTrackedFlights(userId: string): Promise<Flight[]> {
   try {
-    // This would typically fetch from your database
-    // For now, we'll return an empty array
-    return [];
+    if (!userId) return [];
+    
+    const response = await fetch(`/api/tracked-flights`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tracked flights: ${response.statusText}`);
+    }
+    
+    return await response.json();
   } catch (error) {
-    console.error("Error getting tracked flights:", error);
+    console.error("Error in getTrackedFlights:", error);
     return [];
   }
 }
 
 /**
  * Track a flight for a user
- * @param userId The user ID
+ * @param userId The user's ID
  * @param flightId The flight ID to track
- * @returns Success status
+ * @returns True if successful, false otherwise
  */
 export async function trackFlight(userId: string, flightId: string): Promise<boolean> {
   try {
-    // This would typically update your database
-    // For now, we'll just return success
+    if (!userId || !flightId) return false;
+    
+    // First check if this flight is already in the tracked flights
+    const trackedFlights = await getTrackedFlights(userId);
+    if (trackedFlights.some(tf => tf.id === flightId)) {
+      console.log(`Flight ${flightId} is already tracked by user ${userId}`);
+      return true;
+    }
+    
+    // Get the flight details directly from the search results state
+    // We'll extract flight data from our local context instead of making another API call
+    
+    // Make a request to track the flight using just the flight number and date
+    const response = await fetch(`/api/tracked-flights`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        flightId,
+      }),
+    });
+    
+    if (!response.ok) {
+      // If the error is that the flight is already tracked, still return true
+      if (response.status === 400) {
+        const data = await response.json();
+        if (data.message === "You are already tracking this flight") {
+          return true;
+        }
+      }
+      throw new Error(`Failed to track flight: ${response.statusText}`);
+    }
+    
     return true;
   } catch (error) {
-    console.error("Error tracking flight:", error);
+    console.error("Error in trackFlight:", error);
     return false;
   }
 }
 
 /**
  * Untrack a flight for a user
- * @param userId The user ID
+ * @param userId The user's ID
  * @param flightId The flight ID to untrack
- * @returns Success status
+ * @returns True if successful, false otherwise
  */
 export async function untrackFlight(userId: string, flightId: string): Promise<boolean> {
   try {
-    // This would typically update your database
-    // For now, we'll just return success
+    if (!userId || !flightId) return false;
+    
+    // Check if this flight is already tracked
+    const trackedFlights = await getTrackedFlights(userId);
+    const trackedFlight = trackedFlights.find(tf => tf.id === flightId);
+    
+    if (!trackedFlight) {
+      console.warn(`Flight ${flightId} is not tracked by user ${userId}`);
+      return false;
+    }
+    
+    // Delete the tracked flight
+    const response = await fetch(`/api/tracked-flights/${trackedFlight.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to untrack flight: ${response.statusText}`);
+    }
+    
     return true;
   } catch (error) {
-    console.error("Error untracking flight:", error);
+    console.error("Error in untrackFlight:", error);
     return false;
   }
 }
