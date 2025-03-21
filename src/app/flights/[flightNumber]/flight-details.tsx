@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { Flight } from "@/types/flight";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Flight, Price } from "@/types/flight";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +19,24 @@ interface FlightDetailsProps {
 export function FlightDetails({ flight }: FlightDetailsProps) {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isTracking, setIsTracking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [flightWithPrice, setFlightWithPrice] = useState<Flight>(flight);
+
+  useEffect(() => {
+    // Try to get price from URL if available
+    const priceParam = searchParams.get('price');
+    if (priceParam) {
+      try {
+        const priceData = JSON.parse(decodeURIComponent(priceParam)) as Price;
+        setFlightWithPrice(prev => ({ ...prev, price: priceData }));
+      } catch (err) {
+        console.error("Error parsing price data from URL:", err);
+      }
+    }
+  }, [searchParams, flight]);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -85,7 +100,7 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-2xl font-bold">
-              {flight.airline.name} {flight.flight.iata || flight.flight.icao}
+              {flightWithPrice.airline.name} {flightWithPrice.flight.iata || flightWithPrice.flight.icao}
             </CardTitle>
             <Button
               variant={isTracking ? "outline" : "default"}
@@ -107,6 +122,13 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {flightWithPrice.price && (
+            <div className="w-full py-3 px-4 bg-green-50 border border-green-200 rounded-md flex items-center justify-between">
+              <span className="text-sm font-medium text-green-700">Flight Price</span>
+              <span className="text-lg font-bold text-green-700">{flightWithPrice.price.formatted}</span>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <div className="text-sm text-muted-foreground">Departure</div>

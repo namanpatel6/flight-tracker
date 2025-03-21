@@ -8,6 +8,10 @@ import { FlightCard } from "@/components/flight-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { getTrackedFlights, trackFlight, untrackFlight } from "@/lib/flight-api";
+import { Link } from "next/link";
+import { Button } from "@/components/ui/button";
+import { CardFooter } from "@/components/ui/card";
+import { Bell, BellOff } from "lucide-react";
 
 interface SearchParamsType {
   flight_iata?: string;

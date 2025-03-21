@@ -96,7 +96,7 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
         </div>
       </CardContent>
       <CardFooter className="bg-muted/50 p-4 flex justify-between">
-        <Link href={`/flights/${flight.flight.iata || flight.flight.icao}`} passHref>
+        <Link href={`/flights/${flight.flight.iata || flight.flight.icao}${flight.price ? `?price=${encodeURIComponent(JSON.stringify(flight.price))}` : ''}`} passHref>
           <Button variant="secondary">View Details</Button>
         </Link>
         
