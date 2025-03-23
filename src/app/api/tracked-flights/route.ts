@@ -19,36 +19,161 @@ const createTrackedFlightSchema = z.object({
   path: ["flightId"]
 });
 
-export async function GET(req: NextRequest) {
+// GET /api/tracked-flights
+// Retrieves all flights from rules for the current user
+export async function GET() {
   try {
+    console.log("Fetching flights from rules...");
+    
+    // Get the current user session
     const session = await getServerSession(authOptions);
-
+    
     if (!session?.user) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
+      console.error("No authenticated user found");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const trackedFlights = await db.trackedFlight.findMany({
+    
+    const userId = session.user.id;
+    console.log(`Fetching rule flights for user: ${userId}`);
+    
+    // STEP 1: Primary approach - Get all active rules with flight conditions
+    const activeRules = await db.rule.findMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
+        isActive: true,
       },
       include: {
+        conditions: {
+          where: {
+            flightId: {
+              not: null
+            }
+          },
+          include: {
+            flight: true, // Include Flight model
+          },
+        },
         alerts: true,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
     });
-
-    return NextResponse.json(trackedFlights);
+    
+    console.log(`Found ${activeRules.length} active rules`);
+    
+    // Extract and deduplicate flights from rule conditions
+    const flightsMap = new Map();
+    
+    // Process each rule
+    for (const rule of activeRules) {
+      // Get only conditions that have flights
+      const flightConditions = rule.conditions.filter(c => c.flight !== null);
+      
+      console.log(`Rule ${rule.name} has ${flightConditions.length} flight conditions`);
+      
+      for (const condition of flightConditions) {
+        if (!condition.flight) continue;
+        
+        const flight = condition.flight;
+        
+        // If we haven't seen this flight before, add it
+        if (!flightsMap.has(flight.id)) {
+          flightsMap.set(flight.id, {
+            ...flight,
+            alerts: [],
+            activeRules: []
+          });
+        }
+        
+        const flightEntry = flightsMap.get(flight.id);
+        
+        // Add this rule if not already added
+        if (!flightEntry.activeRules.some((r: { id: string }) => r.id === rule.id)) {
+          flightEntry.activeRules.push({
+            id: rule.id,
+            name: rule.name,
+            isActive: rule.isActive
+          });
+          
+          // Add the alerts from this rule
+          for (const alert of rule.alerts) {
+            flightEntry.alerts.push({
+              ...alert,
+              ruleId: rule.id,
+              isActive: rule.isActive
+            });
+          }
+        }
+      }
+    }
+    
+    // STEP 2: Fallback - If no flights found, query RuleCondition directly
+    if (flightsMap.size === 0) {
+      console.log("No flights found in rules, trying direct condition lookup...");
+      
+      const flightConditions = await db.ruleCondition.findMany({
+        where: {
+          rule: {
+            userId: userId,
+            isActive: true
+          },
+          flightId: {
+            not: null
+          }
+        },
+        include: {
+          flight: true,
+          rule: {
+            include: {
+              alerts: true
+            }
+          }
+        }
+      });
+      
+      console.log(`Found ${flightConditions.length} conditions with flights`);
+      
+      // Process each condition
+      for (const condition of flightConditions) {
+        if (!condition.flight) continue;
+        
+        const flight = condition.flight;
+        const rule = condition.rule;
+        
+        if (!flightsMap.has(flight.id)) {
+          flightsMap.set(flight.id, {
+            ...flight,
+            alerts: [],
+            activeRules: []
+          });
+        }
+        
+        const flightEntry = flightsMap.get(flight.id);
+        
+        if (!flightEntry.activeRules.some((r: { id: string }) => r.id === rule.id)) {
+          flightEntry.activeRules.push({
+            id: rule.id,
+            name: rule.name,
+            isActive: rule.isActive
+          });
+          
+          for (const alert of rule.alerts) {
+            flightEntry.alerts.push({
+              ...alert,
+              ruleId: rule.id,
+              isActive: rule.isActive
+            });
+          }
+        }
+      }
+    }
+    
+    // Convert to array and return
+    const flights = Array.from(flightsMap.values());
+    console.log(`Returning ${flights.length} flights with their associated rules and alerts`);
+    
+    return NextResponse.json(flights);
   } catch (error) {
-    console.error("Error fetching tracked flights:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch tracked flights" },
-      { status: 500 }
-    );
+    console.error("Error fetching flights from rules:", error);
+    return NextResponse.json({ error: "Failed to fetch flights from rules" }, { status: 500 });
   }
 }
 

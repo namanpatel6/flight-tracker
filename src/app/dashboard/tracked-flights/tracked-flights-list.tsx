@@ -6,102 +6,115 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertTriangle, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { CreateAlert } from "../alerts/create-alert";
-import { CreateTrackedFlight } from "./create-tracked-flight";
+import { toast } from "sonner";
+
+interface Flight {
+  id: string;
+  flightNumber: string;
+  airline?: string | null;
+  departureAirport: string;
+  arrivalAirport: string;
+  departureTime?: string | null;
+  arrivalTime?: string | null;
+  status?: string | null;
+  price?: string | null;
+  gate?: string | null;
+  terminal?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  alerts: Alert[];
+  activeRules: Rule[];
+}
 
 interface Alert {
   id: string;
   type: string;
-  createdAt: string;
+  isActive: boolean;
+  ruleId?: string;
 }
 
-interface TrackedFlight {
+interface Rule {
   id: string;
-  flightNumber: string;
-  airline: string;
-  departureAirport: string;
-  arrivalAirport: string;
-  departureTime: string | null;
-  arrivalTime: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string | null;
-  alerts: Alert[];
+  name: string;
+  isActive: boolean;
 }
 
 export function TrackedFlightsList() {
   const { data: session } = useSession();
-  const [trackedFlights, setTrackedFlights] = useState<TrackedFlight[]>([]);
+  const [flights, setFlights] = useState<Flight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [debug, setDebug] = useState<any>({
+    fetchAttempted: false,
+    responseStatus: null,
+    dataLength: null
+  });
 
-  const fetchTrackedFlights = async () => {
+  const fetchFlights = async () => {
     if (!session?.user) return;
     
     try {
       setIsLoading(true);
+      setDebug((prev: any) => ({ ...prev, fetchAttempted: true }));
+      
       const response = await fetch("/api/tracked-flights");
+      setDebug((prev: any) => ({ ...prev, responseStatus: response.status }));
       
       if (!response.ok) {
-        throw new Error("Failed to fetch tracked flights");
+        throw new Error(`Failed to fetch flights: ${response.status}`);
       }
       
       const data = await response.json();
-      setTrackedFlights(data);
+      setDebug((prev: any) => ({ ...prev, dataLength: data.length }));
+      console.log("Rule flights data:", data);
+      
+      setFlights(data);
     } catch (error) {
-      console.error("Error fetching tracked flights:", error);
-      setError("Failed to load tracked flights");
+      console.error("Error fetching flights:", error);
+      setError(`Failed to load flights: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDeleteFlight = async (id: string) => {
-    if (!session?.user) return;
-    
-    try {
-      const response = await fetch(`/api/tracked-flights/${id}`, {
-        method: "DELETE",
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to delete tracked flight");
-      }
-      
-      setTrackedFlights(trackedFlights.filter(flight => flight.id !== id));
-    } catch (error) {
-      console.error("Error deleting tracked flight:", error);
-    }
-  };
-
-  const handleAlertCreated = () => {
-    fetchTrackedFlights();
-  };
-
   useEffect(() => {
-    if (session?.user) {
-      fetchTrackedFlights();
-    }
+    fetchFlights();
   }, [session]);
+
+  // Count active alerts for each flight
+  const countActiveAlerts = (flight: Flight) => {
+    return flight.alerts.filter(alert => alert.isActive).length;
+  };
+
+  // Get the count of active rules for each flight
+  const getActiveRulesCount = (flight: Flight) => {
+    return flight.activeRules.filter(rule => rule.isActive).length;
+  };
+
+  // Handle flight deletion (if needed)
+  const handleDeleteFlight = async (flightId: string) => {
+    // For now, let's just show a toast to indicate this functionality is disabled
+    toast.info("Flight deletion is not available as flights are managed by rules");
+  };
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Loading tracked flights...</span>
+      <div className="text-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+        <p>Loading flights...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center p-8">
-        <AlertTriangle className="h-8 w-8 text-destructive mb-2" />
-        <p className="text-destructive">{error}</p>
+      <div className="text-center p-8">
+        <AlertTriangle className="h-8 w-8 text-destructive mx-auto mb-4" />
+        <p className="text-destructive font-medium">{error}</p>
         <Button 
           variant="outline" 
           className="mt-4"
-          onClick={fetchTrackedFlights}
+          onClick={fetchFlights}
         >
           Try Again
         </Button>
@@ -109,52 +122,61 @@ export function TrackedFlightsList() {
     );
   }
 
+  // Add debug information to the UI when there are no flights
   return (
     <div className="space-y-6">
-      <div className="mb-6">
-        <CreateTrackedFlight onSuccess={fetchTrackedFlights} />
-      </div>
-      
-      {trackedFlights.length === 0 ? (
+      {flights.length === 0 ? (
         <div className="text-center p-8 border rounded-lg">
-          <p className="text-muted-foreground mb-4">You are not tracking any flights yet.</p>
-          <p className="text-sm text-muted-foreground">Track a flight to receive updates and set alerts.</p>
+          <p className="text-muted-foreground mb-4">No flights found in your rules.</p>
+          <p className="text-sm text-muted-foreground">Create rules with flight conditions to see flights here.</p>
+          
+          {/* Debug information */}
+          <div className="mt-6 p-4 border border-dashed border-gray-300 rounded-md">
+            <p className="text-xs text-gray-500 mb-2">Debug Information:</p>
+            <pre className="text-xs text-left bg-gray-50 p-2 rounded overflow-auto">
+              {JSON.stringify({
+                session: session ? "Authenticated" : "Not authenticated",
+                ...debug,
+                timestamp: new Date().toISOString()
+              }, null, 2)}
+            </pre>
+          </div>
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {trackedFlights.map((flight) => (
+          {flights.map((flight) => (
             <Card key={flight.id} className="overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">
-                  {flight.flightNumber}
+                  {flight.airline && `${flight.airline} `}{flight.flightNumber}
                 </CardTitle>
                 <CardDescription>
                   {flight.departureAirport} → {flight.arrivalAirport}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pb-2">
-              <p className="text-xs text-gray-500">
-                {flight.status ? `Status: ${flight.status}` : "Status: Not available"}
-              </p>
-              <p className="text-xs text-gray-500">
-                Tracked since: {formatDate(flight.createdAt)}
-              </p>
+                <p className="text-xs text-gray-500">
+                  {flight.status ? `Status: ${flight.status}` : "Status: Not available"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Added: {formatDate(flight.createdAt)}
+                </p>
+                {flight.departureTime && (
+                  <p className="text-xs text-gray-500">
+                    Departure: {formatDate(flight.departureTime)}
+                  </p>
+                )}
                 <div className="mt-2">
                   <p className="text-xs font-medium text-gray-500">
-                    Active Alerts: {flight.alerts?.length || 0}
+                    Active Alerts: {countActiveAlerts(flight)}
+                  </p>
+                  <p className="text-xs font-medium text-gray-500">
+                    Active Rules: {getActiveRulesCount(flight)}
                   </p>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between pt-2">
-                <CreateAlert flightId={flight.id} onSuccess={handleAlertCreated} />
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => handleDeleteFlight(flight.id)}
-                  className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              <CardFooter className="flex justify-end pt-2">
+                {/* Delete button removed as requested */}
               </CardFooter>
             </Card>
           ))}

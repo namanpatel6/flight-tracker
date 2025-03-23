@@ -145,6 +145,7 @@ export function AlertsList() {
                 {alert.type === "GATE_CHANGE" && "Gate Change"}
                 {alert.type === "DEPARTURE" && "Departure Update"}
                 {alert.type === "ARRIVAL" && "Arrival Update"}
+                {alert.type === "PRICE_CHANGE" && "Price Change"}
               </h3>
               <p className="text-sm text-gray-600">
                 Flight: {alert.flight?.flightNumber || alert.flightId}
