@@ -92,10 +92,7 @@ const basicInfoSchema = z.object({
 const flightSearchSchema = z.object({
   searchType: z.enum(['route', 'flightNumber']),
   flightNumber: z.string().optional(),
-  airline: z.string().optional(),
-  fromAirport: z.string().optional(),
-  toAirport: z.string().optional(),
-  departureDate: z.date().optional(),
+  departureDate: z.date({ required_error: "Departure date is required" }),
 });
 
 // Selected flight schema
@@ -178,6 +175,8 @@ export function CreateRuleButton() {
   const [airlines, setAirlines] = useState<Airline[]>([]);
   const [conditions, setConditions] = useState<Condition[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [recommendedAlertTypes, setRecommendedAlertTypes] = useState<string[]>([]);
+  const [selectedAlertTypes, setSelectedAlertTypes] = useState<string[]>([]);
   
   // Forms for each step
   const basicInfoForm = useForm<z.infer<typeof basicInfoSchema>>({
@@ -194,10 +193,7 @@ export function CreateRuleButton() {
     defaultValues: {
       searchType: 'flightNumber',
       flightNumber: '',
-      airline: '',
-      fromAirport: '',
-      toAirport: '',
-      departureDate: undefined,
+      departureDate: new Date(),
     },
   });
 
@@ -237,14 +233,10 @@ export function CreateRuleButton() {
       const params = new URLSearchParams();
       
       // Limit parameters to only those supported by the Flight Radar API
-      if (data.searchType === 'flightNumber') {
-        if (data.flightNumber) params.append('flight_iata', data.flightNumber.trim());
-        // FlightRadar API doesn't directly support airline IATA filtering without flight number
-      } else {
-        // For route search
-        if (data.fromAirport) params.append('dep_iata', data.fromAirport.trim());
-        if (data.toAirport) params.append('arr_iata', data.toAirport.trim());
+      if (data.flightNumber) {
+        params.append('flight_iata', data.flightNumber.trim());
       }
+      // FlightRadar API doesn't directly support airline IATA filtering without flight number
 
       // Only append date if provided
       if (data.departureDate) {
@@ -296,36 +288,25 @@ export function CreateRuleButton() {
   };
 
   const handleSelectFlight = (flight: Flight) => {
-    // Check if flight is already selected
-    const isAlreadySelected = selectedFlights.some(f => 
-      f.flightNumber === flight.flight.iata && 
-      f.departureAirport === flight.departure.iata &&
-      f.arrivalAirport === flight.arrival.iata
-    );
+    // Clear previously selected flights to enforce "one flight per rule" constraint
+    setSelectedFlights([{
+      id: flight.id,
+      flightNumber: flight.flight.iata,
+      airline: flight.airline?.name,
+      departureAirport: flight.departure.iata,
+      arrivalAirport: flight.arrival.iata,
+      departureTime: flight.departure.scheduled,
+      arrivalTime: flight.arrival.scheduled,
+      price: flight.price?.formatted,
+      isSelected: true,
+    }]);
 
-    if (isAlreadySelected) {
-      // Toggle selection off
-      setSelectedFlights(prev => prev.filter(f => 
-        !(f.flightNumber === flight.flight.iata && 
-          f.departureAirport === flight.departure.iata &&
-          f.arrivalAirport === flight.arrival.iata)
-      ));
-    } else {
-      // Add to selected flights
-      const newSelectedFlight: SelectedFlight = {
-        id: `temp-${Date.now()}-${flight.flight.iata}`,
-        flightNumber: flight.flight.iata,
-        airline: flight.airline?.iata,
-        departureAirport: flight.departure.iata,
-        arrivalAirport: flight.arrival.iata,
-        departureTime: flight.departure.scheduled ? new Date(flight.departure.scheduled).toISOString() : undefined,
-        arrivalTime: flight.arrival.scheduled ? new Date(flight.arrival.scheduled).toISOString() : undefined,
-        price: flight.price?.formatted || undefined,
-        isSelected: true,
-      };
-      
-      setSelectedFlights(prev => [...prev, newSelectedFlight]);
-    }
+    // Since we're selecting a new flight, reset conditions and alerts
+    setConditions([]);
+    setAlerts([]);
+    
+    // Update recommended alert types based on the selected flight
+    toast.success(`Selected flight ${flight.flight.iata}`);
   };
 
   const handleAddCondition = () => {
@@ -365,6 +346,11 @@ export function CreateRuleButton() {
     const newConditions = [...conditions];
     newConditions[index] = { ...newConditions[index], [field]: value };
     setConditions(newConditions);
+    
+    // If the field is changing, update the recommended alert types
+    if (field === 'field') {
+      updateRecommendedAlertTypes(newConditions);
+    }
   };
 
   const handleConditionFlightChange = (index: number, flightId: string) => {
@@ -388,36 +374,61 @@ export function CreateRuleButton() {
     }
   };
 
-  const handleAddAlert = (type: string) => {
-    // Only allow adding alert if we have selected flights
-    if (selectedFlights.length === 0) {
-      toast.error('Please select at least one flight first');
-      return;
-    }
-
-    // Add an alert for each selected flight
-    const newAlerts = selectedFlights.map(flight => ({
-      type,
-      isActive: true,
-      flightData: {
-        flightNumber: flight.flightNumber,
-        airline: flight.airline,
-        departureAirport: flight.departureAirport,
-        arrivalAirport: flight.arrivalAirport,
-        departureTime: flight.departureTime,
-        arrivalTime: flight.arrivalTime,
-        price: flight.price,
-      }
-    }));
+  // Update recommended alert types based on selected condition fields
+  const updateRecommendedAlertTypes = (currentConditions: Condition[]) => {
+    const recommendedTypes = currentConditions.map(condition => {
+      return FIELD_TO_ALERT_TYPE[condition.field as keyof typeof FIELD_TO_ALERT_TYPE];
+    }).filter(Boolean);
     
-    setAlerts([...alerts, ...newAlerts]);
-    toast.success(`Added ${type} alerts for ${newAlerts.length} flights`);
+    // Remove duplicates
+    setRecommendedAlertTypes([...new Set(recommendedTypes)]);
   };
 
-  const handleRemoveAlert = (index: number) => {
-    const newAlerts = [...alerts];
-    newAlerts.splice(index, 1);
+  // Handle alert type selection with visual feedback instead of toast
+  const handleSelectAlertType = (type: string) => {
+    // Toggle the selection
+    setSelectedAlertTypes(prev => {
+      const isAlreadySelected = prev.includes(type);
+      if (isAlreadySelected) {
+        return prev.filter(t => t !== type);
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
+
+  // Generate alerts from selected types when moving to next step
+  const generateAlertsFromSelectedTypes = () => {
+    if (selectedAlertTypes.length === 0) {
+      return false;
+    }
+    
+    // Clear existing alerts
+    setAlerts([]);
+    
+    // Create new alerts for each selected type
+    const newAlerts: Alert[] = [];
+    
+    for (const type of selectedAlertTypes) {
+      for (const flight of selectedFlights) {
+        newAlerts.push({
+          type,
+          isActive: true,
+          flightData: {
+            flightNumber: flight.flightNumber,
+            airline: flight.airline,
+            departureAirport: flight.departureAirport,
+            arrivalAirport: flight.arrivalAirport,
+            departureTime: flight.departureTime,
+            arrivalTime: flight.arrivalTime,
+            price: flight.price,
+          }
+        });
+      }
+    }
+    
     setAlerts(newAlerts);
+    return true;
   };
 
   const steps = [
@@ -463,7 +474,7 @@ export function CreateRuleButton() {
       title: 'Alert Configuration',
       description: 'Configure the alerts for your rule',
       validate: async () => {
-        return alerts.length > 0;
+        return selectedAlertTypes.length > 0;
       },
     },
   ];
@@ -490,13 +501,28 @@ export function CreateRuleButton() {
       }
       
       if (isValid) {
+        // If moving from conditions to alerts, update recommended alert types
+        if (currentStep === 2) {
+          updateRecommendedAlertTypes(conditions);
+          
+          // Auto-select recommended alert types if none are selected yet
+          if (selectedAlertTypes.length === 0 && recommendedAlertTypes.length > 0) {
+            setSelectedAlertTypes([...recommendedAlertTypes]);
+          }
+        }
+        
+        // If moving from alerts to summary, generate alerts from selected types
+        if (currentStep === 3) {
+          generateAlertsFromSelectedTypes();
+        }
+        
         setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
       } else if (currentStep === 1 && selectedFlights.length === 0) {
         toast.error('Please select at least one flight before continuing');
       } else if (currentStep === 2 && conditions.length === 0) {
         toast.error('Please add at least one condition before continuing');
-      } else if (currentStep === 3 && alerts.length === 0) {
-        toast.error('Please add at least one alert before continuing');
+      } else if (currentStep === 3 && selectedAlertTypes.length === 0) {
+        toast.error('Please select at least one alert type before continuing');
       } else {
         // Generic validation error message if none of the specific cases match
         toast.error('Please complete all required fields before continuing');
@@ -522,10 +548,15 @@ export function CreateRuleButton() {
       return;
     }
     
+    // Make sure we generate the alerts from selected types before submitting
+    generateAlertsFromSelectedTypes();
+    
     setLoading(true);
     
     try {
       const basicInfo = basicInfoForm.getValues();
+      
+      console.log("Submitting form with alerts:", alerts);
       
       // Create a new rule with all the collected data
       const response = await fetch('/api/rules', {
@@ -544,6 +575,7 @@ export function CreateRuleButton() {
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("API Error:", errorData);
         throw new Error(errorData.message || 'Failed to create rule');
       }
       
@@ -570,6 +602,8 @@ export function CreateRuleButton() {
     setSelectedFlights([]);
     setConditions([]);
     setAlerts([]);
+    setRecommendedAlertTypes([]);
+    setSelectedAlertTypes([]);
   };
 
   // Clean up when changing steps
@@ -682,196 +716,96 @@ export function CreateRuleButton() {
           
           {/* Step 2: Flight Search */}
           {currentStep === 1 && (
-            <div className="space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <Tabs defaultValue="flightNumber" onValueChange={(value) => flightSearchForm.setValue('searchType', value as 'route' | 'flightNumber')}>
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="flightNumber">
-                        <Search className="mr-2 h-4 w-4" />
-                        Flight Number
-                      </TabsTrigger>
-                      <TabsTrigger value="route">
-                        <Plane className="mr-2 h-4 w-4" />
-                        Route
-                      </TabsTrigger>
-                    </TabsList>
+            <div className="space-y-6">
+              <div>
+                <Form {...flightSearchForm}>
+                  <form onSubmit={flightSearchForm.handleSubmit(handleFlightSearch)} className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">Flight Number</label>
+                      <Input 
+                        placeholder="e.g. BA123" 
+                        onChange={(e) => flightSearchForm.setValue('flightNumber', e.target.value)}
+                      />
+                    </div>
                     
-                    <TabsContent value="flightNumber" className="mt-4 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium">Flight Number</label>
-                          <Input 
-                            placeholder="e.g. BA123" 
-                            onChange={(e) => flightSearchForm.setValue('flightNumber', e.target.value)}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="text-sm font-medium">Airline (Optional)</label>
-                          <Select onValueChange={(value) => flightSearchForm.setValue('airline', value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select airline" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {airlines.map((airline) => (
-                                <SelectItem key={airline.value} value={airline.value}>
-                                  {airline.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="route" className="mt-4 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium">From</label>
-                          <Select onValueChange={(value) => flightSearchForm.setValue('fromAirport', value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select departure airport" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {airports.map((airport) => (
-                                <SelectItem key={airport.value} value={airport.value}>
-                                  {airport.label} ({airport.value})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        <div>
-                          <label className="text-sm font-medium">To</label>
-                          <Select onValueChange={(value) => flightSearchForm.setValue('toAirport', value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select arrival airport" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {airports.map((airport) => (
-                                <SelectItem key={airport.value} value={airport.value}>
-                                  {airport.label} ({airport.value})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </TabsContent>
-                    
-                    <div className="mt-4">
-                      <label className="text-sm font-medium">Departure Date (Optional)</label>
+                    <div>
+                      <label className="text-sm font-medium">Departure Date</label>
                       <DatePicker
                         value={flightSearchForm.getValues().departureDate}
-                        onChange={(date) => flightSearchForm.setValue('departureDate', date)}
+                        onChange={(date) => date && flightSearchForm.setValue('departureDate', date)}
                         placeholder="Select date"
                       />
                     </div>
-                  </Tabs>
-                  
-                  <div className="mt-4">
-                    <Button 
-                      onClick={() => handleFlightSearch(flightSearchForm.getValues())} 
-                      disabled={searchLoading}
-                      type="button"
-                    >
-                      {searchLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Searching...
-                        </>
-                      ) : (
-                        <>
-                          <Search className="mr-2 h-4 w-4" />
-                          Search Flights
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardHeader>
-                
-                <CardContent>
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Selected Flights ({selectedFlights.length})</h3>
-                    {selectedFlights.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No flights selected yet</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {selectedFlights.map((flight) => (
-                          <div key={flight.id} className="flex items-center justify-between p-2 border rounded-md">
-                            <div>
-                              <span className="font-medium">{flight.flightNumber}</span>
-                              <span className="text-sm text-muted-foreground ml-2">
-                                {flight.departureAirport} → {flight.arrivalAirport}
-                              </span>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleSelectFlight({
-                                flight: { iata: flight.flightNumber },
-                                departure: { iata: flight.departureAirport },
-                                arrival: { iata: flight.arrivalAirport }
-                              } as Flight)}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {searchResults.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      <h3 className="text-sm font-medium">Search Results ({searchResults.length})</h3>
-                      {searchResults.length > 20 && (
-                        <p className="text-xs text-muted-foreground">
-                          Showing first 20 results. Please refine your search if needed.
-                        </p>
-                      )}
-                      <div className="max-h-60 overflow-y-auto space-y-2">
-                        {searchResults.slice(0, 20).map((flight, index) => {
-                          const isSelected = selectedFlights.some(f => 
-                            f.flightNumber === flight.flight.iata && 
-                            f.departureAirport === flight.departure.iata &&
-                            f.arrivalAirport === flight.arrival.iata
-                          );
-                          
-                          return (
-                            <div 
-                              key={`search-result-${index}`}
-                              className={`p-2 border rounded-md cursor-pointer hover:bg-muted ${isSelected ? 'bg-muted' : ''}`}
-                              onClick={() => handleSelectFlight(flight)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <span className="font-medium">{flight.flight.iata}</span>
-                                  <span className="text-sm text-muted-foreground ml-2">
-                                    {flight.departure.iata} → {flight.arrival.iata}
-                                  </span>
-                                  {flight.flight_status && (
-                                    <Badge variant="outline" className="ml-2">
-                                      {flight.flight_status}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <Checkbox checked={isSelected} />
-                              </div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {flight.airline?.name || 'Unknown Airline'} • 
-                                {flight.departure.scheduled ? ` Departure: ${new Date(flight.departure.scheduled).toLocaleString()}` : ''}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                    
+                    <div className="text-sm text-muted-foreground mt-2">
+                      <p>Note: You can only select one flight per rule.</p>
                     </div>
+                    
+                    <div className="flex justify-start">
+                      <Button type="submit" disabled={searchLoading}>
+                        {searchLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="mr-2 h-4 w-4" />
+                            Search Flights
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </div>
+              
+              {searchResults.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h3 className="text-sm font-medium">Search Results ({searchResults.length})</h3>
+                  {searchResults.length > 20 && (
+                    <p className="text-xs text-muted-foreground">
+                      Showing first 20 results. Please refine your search if needed.
+                    </p>
                   )}
-                </CardContent>
-              </Card>
+                  <div className="max-h-60 overflow-y-auto space-y-2">
+                    {searchResults.slice(0, 20).map((flight, index) => {
+                      const isSelected = selectedFlights.some(f => 
+                        f.flightNumber === flight.flight.iata && 
+                        f.departureAirport === flight.departure.iata &&
+                        f.arrivalAirport === flight.arrival.iata
+                      );
+                      
+                      return (
+                        <div 
+                          key={`search-result-${index}`}
+                          className={`p-2 border rounded-md cursor-pointer hover:bg-muted ${isSelected ? 'bg-muted' : ''}`}
+                          onClick={() => handleSelectFlight(flight)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-medium">{flight.flight.iata}</span>
+                              <span className="text-sm text-muted-foreground ml-2">
+                                {flight.departure.iata} → {flight.arrival.iata}
+                              </span>
+                              {flight.flight_status && (
+                                <Badge variant="outline" className="ml-2">
+                                  {flight.flight_status}
+                                </Badge>
+                              )}
+                            </div>
+                            <Checkbox checked={isSelected} />
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {flight.airline?.name || 'Unknown Airline'} • 
+                            {flight.departure.scheduled ? ` Departure: ${new Date(flight.departure.scheduled).toLocaleString()}` : ''}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           
@@ -992,58 +926,88 @@ export function CreateRuleButton() {
                 <h3 className="text-base font-medium">Configure Alerts</h3>
                 <p className="text-sm text-muted-foreground">
                   Select which types of alerts you want to receive for your selected flights.
+                  {recommendedAlertTypes.length > 0 && (
+                    <span className="block mt-1 text-blue-600">
+                      Based on your conditions, we recommend: {recommendedAlertTypes.map(type => 
+                        ALERT_TYPES.find(t => t.id === type)?.label).join(', ')}
+                    </span>
+                  )}
                 </p>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                {ALERT_TYPES.map((alertType) => (
-                  <Card 
-                    key={alertType.id}
-                    className="cursor-pointer hover:bg-muted"
-                    onClick={() => handleAddAlert(alertType.id)}
-                  >
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">{alertType.label}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Get notified about {alertType.label.toLowerCase()} events
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+                {ALERT_TYPES.map((alertType) => {
+                  const isSelected = selectedAlertTypes.includes(alertType.id);
+                  const isRecommended = recommendedAlertTypes.includes(alertType.id);
+                  
+                  return (
+                    <Card 
+                      key={alertType.id}
+                      className={`cursor-pointer transition-all duration-200 ${
+                        isSelected 
+                          ? 'border-primary bg-primary/10 shadow-md' 
+                          : isRecommended 
+                            ? 'border-blue-300 shadow-sm' 
+                            : 'hover:bg-muted'
+                      }`}
+                      onClick={() => handleSelectAlertType(alertType.id)}
+                    >
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div>
+                          <h4 className={`font-medium ${isSelected ? 'text-primary' : ''}`}>
+                            {alertType.label}
+                            {isRecommended && !isSelected && (
+                              <span className="ml-2 text-xs text-blue-600 font-normal">Recommended</span>
+                            )}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            Get notified about {alertType.label.toLowerCase()} events
+                          </p>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center
+                          ${isSelected ? 'border-primary bg-primary text-white' : 'border-muted-foreground'}`}>
+                          {isSelected && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M9 1L3.5 6.5L1 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
               
               <div className="mt-6">
-                <h3 className="text-sm font-medium mb-2">Selected Alerts ({alerts.length})</h3>
-                {alerts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No alerts configured yet</p>
+                <h3 className="text-sm font-medium mb-2">
+                  Selected Alert Types ({selectedAlertTypes.length})
+                </h3>
+                {selectedAlertTypes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No alerts selected yet</p>
                 ) : (
                   <div className="space-y-2">
-                    {alerts.map((alert, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 border rounded-md">
-                        <div>
-                          <Badge className="mr-2">
-                            {ALERT_TYPES.find(t => t.id === alert.type)?.label || alert.type}
-                          </Badge>
-                          {alert.flightData && (
+                    {selectedAlertTypes.map((type, index) => {
+                      const alertType = ALERT_TYPES.find(t => t.id === type);
+                      return (
+                        <div key={index} className="flex items-center justify-between p-2 border rounded-md">
+                          <div>
+                            <Badge className="mr-2">
+                              {alertType?.label || type}
+                            </Badge>
                             <span className="text-sm">
-                              {alert.flightData.flightNumber} ({alert.flightData.departureAirport} → {alert.flightData.arrivalAirport})
+                              Will apply to {selectedFlights.length} selected flight(s)
                             </span>
-                          )}
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleSelectAlertType(type)}
+                          >
+                            Remove
+                          </Button>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleRemoveAlert(index)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

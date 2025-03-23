@@ -80,16 +80,29 @@ export async function PATCH(
     const id = params.id;
     
     // Validate the rule exists and belongs to the user
-    const existingRule = await prisma.$queryRaw`
-      SELECT id FROM "Rule" WHERE id = ${id} AND "userId" = ${session.user.id}
-    `;
+    const existingRule = await prisma.rule.findUnique({
+      where: { 
+        id,
+        userId: session.user.id
+      },
+      include: {
+        conditions: true,
+        alerts: true
+      }
+    });
 
-    if (!existingRule || !Array.isArray(existingRule) || existingRule.length === 0) {
+    if (!existingRule) {
       return NextResponse.json(
         { message: "Rule not found" },
         { status: 404 }
       );
     }
+
+    console.log("EXISTING RULE DATA:", {
+      id: existingRule.id,
+      conditions: existingRule.conditions,
+      alerts: existingRule.alerts
+    });
 
     // Parse and validate the request body
     const updateSchema = z.object({
@@ -101,7 +114,7 @@ export async function PATCH(
       conditions: z.array(
         z.object({
           id: z.string().optional(),
-          field: z.string().min(1),
+          field: z.enum(["status", "departureTime", "arrivalTime", "gate", "terminal", "flightNumber", "price"]),
           operator: z.string().min(1),
           value: z.string().min(1),
           flightId: z.string().nullable().optional(),
@@ -118,9 +131,11 @@ export async function PATCH(
     });
 
     const body = await request.json();
+    console.log("RECEIVED UPDATE DATA:", body);
     const validatedData = updateSchema.safeParse(body);
 
     if (!validatedData.success) {
+      console.log("VALIDATION FAILED:", validatedData.error.format());
       return NextResponse.json(
         { message: "Invalid request data", errors: validatedData.error.format() },
         { status: 400 }
@@ -152,10 +167,13 @@ export async function PATCH(
       
       // 2. Handle conditions if provided
       if (updateData.conditions) {
+        console.log("PROCESSING CONDITIONS:", updateData.conditions);
+        
         // Get existing conditions
         const existingConditions = await tx.ruleCondition.findMany({
           where: { ruleId: id },
         });
+        console.log("EXISTING CONDITIONS:", existingConditions);
         
         // Identify conditions to create, update, or delete
         const existingConditionIds = existingConditions.map(c => c.id);
@@ -163,10 +181,16 @@ export async function PATCH(
           .filter(c => c.id)
           .map(c => c.id as string);
         
+        console.log({
+          existingConditionIds,
+          updatedConditionIds,
+        });
+        
         // Delete conditions that are no longer in the updated list
         const conditionsToDelete = existingConditionIds.filter(
           id => !updatedConditionIds.includes(id)
         );
+        console.log("CONDITIONS TO DELETE:", conditionsToDelete);
         
         if (conditionsToDelete.length > 0) {
           await tx.ruleCondition.deleteMany({
@@ -190,6 +214,7 @@ export async function PATCH(
               conditionUpdateData.flightId = condition.flightId;
             }
             
+            console.log(`UPDATING CONDITION ${condition.id}:`, conditionUpdateData);
             await tx.ruleCondition.update({
               where: { id: condition.id },
               data: conditionUpdateData,
@@ -207,15 +232,19 @@ export async function PATCH(
               conditionCreateData.flightId = condition.flightId;
             }
             
+            console.log("CREATING NEW CONDITION:", conditionCreateData);
             await tx.ruleCondition.create({
               data: conditionCreateData,
             });
           }
         }
+      } else {
+        console.log("NO CONDITIONS PROVIDED in update request");
       }
       
       // 3. Handle alerts if provided
       if (updateData.alerts) {
+        console.log("PROCESSING ALERTS:", updateData.alerts);
         // Get existing alerts
         const existingAlerts = await tx.alert.findMany({
           where: { ruleId: id },
@@ -253,6 +282,7 @@ export async function PATCH(
               alertUpdateData.flightId = alert.flightId;
             }
             
+            console.log(`UPDATING ALERT ${alert.id}:`, alertUpdateData);
             await tx.alert.update({
               where: { id: alert.id },
               data: alertUpdateData,
@@ -261,15 +291,26 @@ export async function PATCH(
             // Create new alert
             const alertCreateData: any = {
               type: alert.type,
-              isActive: alert.isActive,
+              isActive: alert.isActive ?? true,
               ruleId: id,
               userId: session.user.id,
             };
             
-            if (alert.flightId !== undefined) {
-              alertCreateData.flightId = alert.flightId;
+            if (alert.flightId !== undefined && alert.flightId !== null) {
+              // Verify the flight exists before trying to create the alert
+              const flightExists = await tx.trackedFlight.findUnique({
+                where: { id: alert.flightId },
+                select: { id: true }
+              });
+              
+              if (flightExists) {
+                alertCreateData.flightId = alert.flightId;
+              } else {
+                console.log(`Warning: Flight with ID ${alert.flightId} not found, skipping flightId assignment`);
+              }
             }
             
+            console.log("CREATING NEW ALERT:", alertCreateData);
             await tx.alert.create({
               data: alertCreateData,
             });

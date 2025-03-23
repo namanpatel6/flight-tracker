@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export type RuleOperator = "AND" | "OR";
-export type ConditionField = "status" | "departureTime" | "arrivalTime" | "gate" | "terminal" | "flightNumber";
+export type ConditionField = "status" | "departureTime" | "arrivalTime" | "gate" | "terminal" | "flightNumber" | "price";
 export type ConditionOperator = 
   "equals" | 
   "notEquals" | 
@@ -72,11 +72,12 @@ export const flightDataSchema = z.object({
   status: z.string().optional(),
   gate: z.string().optional(),
   terminal: z.string().optional(),
+  price: z.string().optional(),
 });
 
 // Validation schemas
 export const createRuleConditionSchema = z.object({
-  field: z.enum(["status", "departureTime", "arrivalTime", "gate", "terminal", "flightNumber"]),
+  field: z.enum(["status", "departureTime", "arrivalTime", "gate", "terminal", "flightNumber", "price"]),
   operator: z.enum([
     "equals", 
     "notEquals", 

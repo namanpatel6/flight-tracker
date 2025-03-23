@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
               status: condition.flightData.status,
               gate: condition.flightData.gate,
               terminal: condition.flightData.terminal,
+              price: condition.flightData.price,
             }
           });
           flightId = newFlight.id;
@@ -141,6 +142,7 @@ export async function POST(req: NextRequest) {
                 status: alert.flightData.status,
                 gate: alert.flightData.gate,
                 terminal: alert.flightData.terminal,
+                price: alert.flightData.price,
               }
             });
             flightId = newFlight.id;

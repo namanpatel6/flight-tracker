@@ -49,7 +49,7 @@ export default async function RulesPage() {
   const rules = await getRules(session.user.id);
 
   return (
-    <div className="container py-10">
+    <div className="max-w-6xl mx-auto py-10 px-4">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Flight Rules</h1>
         <CreateRuleButton />

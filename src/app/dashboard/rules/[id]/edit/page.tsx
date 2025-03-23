@@ -97,8 +97,9 @@ export default async function EditRulePage({ params }: PageProps) {
     redirect('/login');
   }
   
-  // Extract the id from params before using it
-  const id = params.id;
+  // Await params before using them
+  const paramsData = await params;
+  const id = paramsData.id;
   const rule = await getRuleDetails(id, session.user.id);
   
   if (!rule) {
