@@ -403,11 +403,15 @@ export function CreateRuleButton() {
       return false;
     }
     
-    // Clear existing alerts
-    setAlerts([]);
-    
     // Create new alerts for each selected type
     const newAlerts: Alert[] = [];
+    
+    // Make sure we have all selected flights
+    if (selectedFlights.length === 0) {
+      console.error("No flights selected when generating alerts");
+      toast.error("Error: No flights selected");
+      return false;
+    }
     
     for (const type of selectedAlertTypes) {
       for (const flight of selectedFlights) {
@@ -427,7 +431,14 @@ export function CreateRuleButton() {
       }
     }
     
+    console.log("Generated alerts:", newAlerts);
     setAlerts(newAlerts);
+    
+    if (newAlerts.length === 0) {
+      console.error("Failed to generate any alerts");
+      return false;
+    }
+    
     return true;
   };
 
@@ -549,7 +560,11 @@ export function CreateRuleButton() {
     }
     
     // Make sure we generate the alerts from selected types before submitting
-    generateAlertsFromSelectedTypes();
+    const alertsGenerated = generateAlertsFromSelectedTypes();
+    if (!alertsGenerated || alerts.length === 0) {
+      toast.error("At least one alert is required. Please select alert types.");
+      return;
+    }
     
     setLoading(true);
     
