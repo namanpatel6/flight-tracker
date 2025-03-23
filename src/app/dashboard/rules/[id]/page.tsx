@@ -143,10 +143,10 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
       'notEquals': 'does not equal',
       'contains': 'contains',
       'notContains': 'does not contain',
-      'greaterThan': 'is after',
-      'lessThan': 'is before',
-      'greaterThanOrEqual': 'is on or after',
-      'lessThanOrEqual': 'is on or before',
+      'greaterThan': 'is greater than',
+      'lessThan': 'is less than',
+      'greaterThanOrEqual': 'is greater than or equal to',
+      'lessThanOrEqual': 'is less than or equal to',
       'between': 'is between',
       'changed': 'has changed to'
     };
