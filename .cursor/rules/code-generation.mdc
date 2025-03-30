@@ -1,7 +1,7 @@
 ---
-description: Rules for code generation
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 Follow these rules while generating code:
 
@@ -9,4 +9,3 @@ Follow these rules while generating code:
 2. Always ask me before actually committing/saving the changes to the files.
 3. if you have any questions about anything related to the project/task at hand, stop and ask me to clarify your doubts. Do not assume anything.
 4. Always commit changes to github and push once every few collections of changes. Also, ask me specifically if I want to commit my changes if you're making a change that affects a lot of files.
-5. Make sure to test the code after making every change to verify nothing breaks before moving on.

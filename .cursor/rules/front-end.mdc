@@ -12,6 +12,7 @@ alwaysApply: false
   - Prefer iteration and modularization over code duplication.
   - Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
   - Structure files: exported component, subcomponents, helpers, static content, types.
+  - Make sure to search for existing components first before creating new ones.
   
   Naming Conventions
   - Use lowercase with dashes for directories (e.g., components/auth-wizard).
@@ -46,4 +47,8 @@ alwaysApply: false
     - Avoid for data fetching or state management.
   
   Follow Next.js docs for Data Fetching, Rendering, and Routing.
+
+  Before creating new components, always make sure to check for existing ones, if they exist, for the feature that you need to implement. If they exits,
+  try to modify the existing components to include the new feature. If you can't make it work, then create a new one and delete the old component. Always ask me 
+  before deleting the old component, don't delete it directly.
   
