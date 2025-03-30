@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Flight } from "@/types/flight";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { formatDate, formatTime, calculateDuration, getStatusDescription } from "@/lib/utils";
+import { formatDateWithTimezone, calculateDuration, getStatusDescription } from "@/lib/utils";
 import { Bell, BellOff, Plane, ArrowRight, Clock } from "lucide-react";
 
 interface FlightCardProps {
@@ -25,7 +25,7 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
                 {flight.airline.name} {flight.flight.iata || flight.flight.icao}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {formatDate(flight.departure.scheduled)}
+                {formatDateWithTimezone(flight.departure.scheduled)}
               </p>
             </div>
             <div className={`text-sm font-medium px-3 py-1 rounded-full ${
@@ -56,10 +56,10 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatTime(flight.departure.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.departure.scheduled)}</div>
                 {flight.departure.actual && flight.departure.actual !== flight.departure.scheduled && (
                   <div className="text-sm text-muted-foreground">
-                    (Actual: {formatTime(flight.departure.actual)})
+                    (Actual: {formatDateWithTimezone(flight.departure.actual)})
                   </div>
                 )}
               </div>
@@ -79,10 +79,10 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatTime(flight.arrival.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.arrival.scheduled)}</div>
                 {flight.arrival.actual && flight.arrival.actual !== flight.arrival.scheduled && (
                   <div className="text-sm text-muted-foreground">
-                    (Actual: {formatTime(flight.arrival.actual)})
+                    (Actual: {formatDateWithTimezone(flight.arrival.actual)})
                   </div>
                 )}
               </div>

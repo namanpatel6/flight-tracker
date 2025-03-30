@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate, formatTime, calculateDuration } from "@/lib/utils";
+import { formatDateWithTimezone, calculateDuration } from "@/lib/utils";
 import { AlertCircle, Bell, BellOff, Plane, Calendar, Clock, MapPin } from "lucide-react";
 import { getTrackedFlights, trackFlight, untrackFlight } from "@/lib/flight-api";
 
@@ -138,14 +138,14 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
               </div>
               <div className="flex items-center space-x-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>{formatDate(flight.departure.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.departure.scheduled)}</div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatTime(flight.departure.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.departure.scheduled)}</div>
                 {flight.departure.actual && (
                   <div className="text-sm text-muted-foreground">
-                    (Actual: {formatTime(flight.departure.actual)})
+                    (Actual: {formatDateWithTimezone(flight.departure.actual)})
                   </div>
                 )}
               </div>
@@ -168,14 +168,14 @@ export function FlightDetails({ flight }: FlightDetailsProps) {
               </div>
               <div className="flex items-center space-x-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>{formatDate(flight.arrival.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.arrival.scheduled)}</div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatTime(flight.arrival.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.arrival.scheduled)}</div>
                 {flight.arrival.actual && (
                   <div className="text-sm text-muted-foreground">
-                    (Actual: {formatTime(flight.arrival.actual)})
+                    (Actual: {formatDateWithTimezone(flight.arrival.actual)})
                   </div>
                 )}
               </div>

@@ -20,16 +20,16 @@ export default function Home() {
                 Get real-time updates on flight status, delays, and gate changes. Never miss a flight again.
               </p>
               <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                <Link href="/flights/search">
+                <Link href="/flights/results">
                   <Button size="lg" className="gap-1.5">
                     <Search className="h-4 w-4" />
                     Search Flights
                   </Button>
                 </Link>
-                <Link href="/api/auth/signin">
+                <Link href="/dashboard/rules">
                   <Button size="lg" variant="outline" className="gap-1.5">
                     <Bell className="h-4 w-4" />
-                    Set Up Alerts
+                    Set Up Flight Rules
                   </Button>
                 </Link>
               </div>
@@ -99,7 +99,7 @@ export default function Home() {
             <p className="text-muted-foreground md:text-lg mb-8">
               Start using our flight tracker today and never worry about missing a flight or gate change again.
             </p>
-            <Link href="/flights/search">
+            <Link href="/flights/results">
               <Button size="lg" className="gap-1.5">
                 Get Started
                 <ArrowRight className="h-4 w-4" />

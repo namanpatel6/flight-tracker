@@ -45,6 +45,7 @@ import {
   Dropdown, 
   type DropdownOption 
 } from "@/components/custom-ui";
+import { formatDateWithTimezone } from "@/lib/utils";
 
 // Define alert types
 const ALERT_TYPES = [
@@ -813,7 +814,7 @@ export function CreateRuleButton() {
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {flight.airline?.name || 'Unknown Airline'} • 
-                            {flight.departure.scheduled ? ` Departure: ${new Date(flight.departure.scheduled).toLocaleString()}` : ''}
+                            {flight.departure.scheduled ? ` Departure: ${formatDateWithTimezone(flight.departure.scheduled)}` : ''}
                           </div>
                         </div>
                       );

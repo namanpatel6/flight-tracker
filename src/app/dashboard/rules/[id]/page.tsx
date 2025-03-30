@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateWithTimezone } from "@/lib/utils";
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -204,7 +204,7 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
               {flight.departureTime && (
                 <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  <span>Departure Date: {formatDate(flight.departureTime.toString())}</span>
+                  <span>Departure Date: {formatDateWithTimezone(flight.departureTime.toString())}</span>
                 </div>
               )}
             </div>

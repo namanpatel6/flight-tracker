@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, AlertTriangle, Trash2 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { Loader2, AlertTriangle, Clock } from "lucide-react";
+import { formatDateWithTimezone } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface Flight {
@@ -154,25 +154,41 @@ export function TrackedFlightsList() {
                   {flight.departureAirport} → {flight.arrivalAirport}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pb-2">
-                <p className="text-xs text-gray-500">
-                  {flight.status ? `Status: ${flight.status}` : "Status: Not available"}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Added: {formatDate(flight.createdAt)}
-                </p>
-                {flight.departureTime && (
-                  <p className="text-xs text-gray-500">
-                    Departure: {formatDate(flight.departureTime)}
-                  </p>
-                )}
-                <div className="mt-2">
-                  <p className="text-xs font-medium text-gray-500">
-                    Active Alerts: {countActiveAlerts(flight)}
-                  </p>
-                  <p className="text-xs font-medium text-gray-500">
-                    Active Rules: {getActiveRulesCount(flight)}
-                  </p>
+              <CardContent>
+                <div className="space-y-2">
+                  {flight.status && (
+                    <p className="text-xs text-gray-500">
+                      <span className="font-medium">Status:</span> {flight.status}
+                    </p>
+                  )}
+                  
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                    <Clock className="h-3 w-3" />
+                    <span className="font-medium">Created:</span> {formatDateWithTimezone(flight.createdAt)}
+                  </div>
+                  
+                  {flight.departureTime && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Clock className="h-3 w-3" />
+                      <span className="font-medium">Departure:</span> {formatDateWithTimezone(flight.departureTime)}
+                    </div>
+                  )}
+                  
+                  {flight.arrivalTime && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Clock className="h-3 w-3" />
+                      <span className="font-medium">Arrival:</span> {formatDateWithTimezone(flight.arrivalTime)}
+                    </div>
+                  )}
+                  
+                  <div className="pt-2 border-t border-gray-100 mt-2">
+                    <p className="text-xs font-medium text-gray-500">
+                      Active Alerts: {countActiveAlerts(flight)}
+                    </p>
+                    <p className="text-xs font-medium text-gray-500">
+                      Active Rules: {getActiveRulesCount(flight)}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end pt-2">

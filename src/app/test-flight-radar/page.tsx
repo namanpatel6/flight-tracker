@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Flight } from "@/types/flight";
+import { formatDateWithTimezone } from "@/lib/utils";
 
 export default function TestFlightRadarPage() {
   const [airports, setAirports] = useState<any[]>([]);
@@ -212,11 +213,11 @@ export default function TestFlightRadarPage() {
                     </p>
                     <p className="text-sm">
                       Scheduled:{" "}
-                      {new Date(flight.departure.scheduled).toLocaleString()}
+                      {formatDateWithTimezone(flight.departure.scheduled)}
                     </p>
                     {flight.departure.actual && (
                       <p className="text-sm">
-                        Actual: {new Date(flight.departure.actual).toLocaleString()}
+                        Actual: {formatDateWithTimezone(flight.departure.actual)}
                       </p>
                     )}
                     {flight.departure.delay !== undefined && (
@@ -233,11 +234,11 @@ export default function TestFlightRadarPage() {
                     </p>
                     <p className="text-sm">
                       Scheduled:{" "}
-                      {new Date(flight.arrival.scheduled).toLocaleString()}
+                      {formatDateWithTimezone(flight.arrival.scheduled)}
                     </p>
                     {flight.arrival.actual && (
                       <p className="text-sm">
-                        Actual: {new Date(flight.arrival.actual).toLocaleString()}
+                        Actual: {formatDateWithTimezone(flight.arrival.actual)}
                       </p>
                     )}
                     {flight.arrival.delay !== undefined && (

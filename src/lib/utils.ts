@@ -97,3 +97,23 @@ export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
   return `${text.slice(0, maxLength)}...`
 }
+
+/**
+ * Format a date string to a readable format with timezone
+ * @param dateString ISO date string
+ * @returns Formatted date string with timezone (e.g., "Mar 15, 2025, 08:00 AM EDT")
+ */
+export function formatDateWithTimezone(dateString: string): string {
+  if (!dateString) return "N/A";
+  
+  const date = new Date(dateString);
+  
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    timeZoneName: "short"
+  }).format(date);
+}
