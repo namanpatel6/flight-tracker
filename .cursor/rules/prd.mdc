@@ -1,7 +1,7 @@
 ---
-description: Rules for project constraints
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 This is a project that implements a flight tracker what allows me to track flights between any source and destination in the world. The app should allow me to track flights for any collection of sources and destinations.
 

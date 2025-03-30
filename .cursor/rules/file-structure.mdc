@@ -1,7 +1,7 @@
 ---
-description: Rules for File Structure for Code Generation
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 This document outlines the recommended file structure for a modern Next.js application using TypeScript, shadcn/ui components, and Tailwind CSS. Each section includes context descriptions to help Cursor understand the purpose of different files and directories.
 

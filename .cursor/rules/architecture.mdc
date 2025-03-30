@@ -1,7 +1,7 @@
 ---
-description: Rules for the Architecture for Code Generation
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 This document describes the architecture for the app. Follow these rules to ensure the app can be deployed successfully.
 
