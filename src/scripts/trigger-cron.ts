@@ -1,43 +1,16 @@
 /**
- * This script manually triggers the cron job to update flights and send notifications.
- * It's useful for testing the cron job functionality without waiting for the scheduled run.
+ * DEPRECATED: This script was used to manually trigger the cron job to update flights and send notifications.
+ * The email notification system has been removed and will be replaced with an external API.
  */
 
-async function triggerCronJob() {
-  console.log('Manually triggering the flight update cron job...');
-  
-  const apiKey = process.env.CRON_API_KEY;
-  
-  if (!apiKey) {
-    console.error('❌ CRON_API_KEY environment variable is not set.');
-    process.exit(1);
-  }
-  
-  try {
-    // Determine the base URL based on environment
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const url = `${baseUrl}/api/cron/update-flights`;
-    
-    console.log(`Making request to: ${url}`);
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey
-      }
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to trigger cron job: ${response.status} ${response.statusText}\n${errorText}`);
-    }
-    
-    const result = await response.json();
-    console.log('✅ Cron job triggered successfully:', result);
-  } catch (error) {
-    console.error('❌ Error triggering cron job:', error);
-  }
+console.log('⚠️ DEPRECATED: The cron job functionality has been removed.');
+console.log('This script is kept for reference purposes only.');
+console.log('Flight notifications will be handled by an external API in the future.');
+
+function triggerCronJob() {
+  console.log('ℹ️ This functionality is no longer available.');
+  console.log('Please refer to the new notification API documentation when available.');
 }
 
-// Run the function
-triggerCronJob().catch(console.error); 
+// This function call is intentionally commented out
+// triggerCronJob(); 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { searchFlights } from "@/lib/flight-api";
-import { sendAlertEmail } from "@/lib/email";
+// Import placeholder for future notification API
+import { sendNotification } from "@/lib/notifications";
 import { Flight } from "@/types/flight";
 import { evaluateRule } from "@/lib/rules";
 
@@ -35,11 +36,7 @@ export async function GET(request: NextRequest) {
       environmentHeader === "production" || 
       process.env.NODE_ENV === "production";
     
-    if (isProduction) {
-      console.log("Running cron job in PRODUCTION mode - will send real emails");
-    } else {
-      console.log("Running cron job in DEVELOPMENT mode - will use Ethereal for emails");
-    }
+    console.log(`Running cron job in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
     
     // Process tracked flights with direct alerts
     await processTrackedFlightsWithAlerts();
@@ -65,7 +62,6 @@ async function processTrackedFlightsWithAlerts() {
       alerts: {
         some: {
           isActive: true,
-          // @ts-expect-error - ruleId exists in the schema but TypeScript doesn't recognize it yet
           ruleId: null, // Only get alerts not associated with rules
         },
       },
@@ -74,7 +70,6 @@ async function processTrackedFlightsWithAlerts() {
       alerts: {
         where: {
           isActive: true,
-          // @ts-expect-error - ruleId exists in the schema but TypeScript doesn't recognize it yet
           ruleId: null,
         },
       },
@@ -134,7 +129,6 @@ async function processTrackedFlightsWithAlerts() {
 // Process rules
 async function processRules() {
   // Get all active rules with their conditions and alerts
-  // @ts-expect-error - rule exists in the schema but TypeScript doesn't recognize it yet
   const rules = await prisma.rule.findMany({
     where: {
       isActive: true,
@@ -167,10 +161,12 @@ async function processRules() {
       
       // Get all unique flight IDs from the rule's conditions and alerts
       const flightIds = new Set<string>();
-      rule.conditions.forEach((condition: { flightId?: string }) => {
+      rule.conditions.forEach((condition: any) => {
         if (condition.flightId) flightIds.add(condition.flightId);
       });
-      rule.alerts.forEach((alert: { flightId: string }) => flightIds.add(alert.flightId));
+      rule.alerts.forEach((alert: any) => {
+        if (alert.flightId) flightIds.add(alert.flightId);
+      });
       
       // Fetch the latest data for all flights
       const flightData: Record<string, any> = {};
@@ -230,7 +226,7 @@ async function processRules() {
         
         // Process alerts for this rule
         for (const alert of rule.alerts) {
-          if (!alert.flight || !alert.user) continue;
+          if (!alert.flight || !alert.user || !alert.flightId) continue;
           
           const flightWithChanges = flightData[alert.flightId];
           if (!flightWithChanges) continue;
@@ -248,23 +244,12 @@ async function processRules() {
                 read: false,
                 userId: alert.userId,
                 flightId: alert.flightId,
-                // @ts-expect-error - ruleId exists in the schema but TypeScript doesn't recognize it yet
                 ruleId: rule.id,
               },
             });
             
-            // Send email notification if user has an email
-            if (alert.user.email) {
-              await sendAlertEmail(
-                alert.user.email,
-                alert.type,
-                {
-                  ...alert.flight,
-                  ...flightWithChanges,
-                }
-              );
-              console.log(`Email sent to ${alert.user.email} for rule ${rule.name} alert type ${alert.type}`);
-            }
+            // TODO: Replace with notification API integration
+            console.log(`Notification created for user ${alert.userId} for rule ${rule.name} alert type ${alert.type}, API integration needed`);
           } catch (error) {
             console.error('Error processing rule notification:', error);
           }
@@ -441,23 +426,9 @@ async function processAlerts(trackedFlight: any, latestFlightInfo: Flight, chang
             },
           });
           
-          // Send email notification if user has an email
-          if (trackedFlight.user.email) {
-            // Prepare flight data for email
-            const flightData = {
-              ...trackedFlight,
-              status: latestFlightInfo.flight_status,
-              gate: latestFlightInfo.departure.gate,
-              terminal: latestFlightInfo.departure.terminal
-            };
-            
-            await sendAlertEmail(
-              trackedFlight.user.email,
-              change.type,
-              flightData
-            );
-            console.log(`Email sent to ${trackedFlight.user.email} for alert type ${change.type}`);
-          }
+          // TODO: Replace with notification API integration
+          console.log(`Notification created for user ${trackedFlight.userId} for alert type ${change.type}, API integration needed`);
+          
         } catch (error) {
           console.error('Error processing notification:', error);
         }

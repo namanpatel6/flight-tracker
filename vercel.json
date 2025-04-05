@@ -1,10 +1,5 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/update-flights",
-      "schedule": "*/15 * * * *"
-    }
-  ],
+  "crons": [],
   "headers": [
     {
       "source": "/api/cron/update-flights",
