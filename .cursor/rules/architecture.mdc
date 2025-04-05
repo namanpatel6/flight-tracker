@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 This document describes the architecture for the app. Follow these rules to ensure the app can be deployed successfully.
 
