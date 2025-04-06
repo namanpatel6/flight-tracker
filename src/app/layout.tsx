@@ -4,6 +4,10 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { MainNav } from "@/components/nav/main-nav";
 import { Toaster } from "sonner";
+import { initializeServerServices } from "@/lib/server-init";
+
+// Initialize server services (will only run in production)
+initializeServerServices();
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
