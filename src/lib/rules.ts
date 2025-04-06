@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export type RuleOperator = "AND" | "OR";
-export type ConditionField = "status" | "departureTime" | "arrivalTime" | "gate" | "terminal" | "flightNumber" | "price";
+export type ConditionField = "status" | "departureTime" | "arrivalTime" | "gate" | "terminal" | "flightNumber";
 export type ConditionOperator = 
   "equals" | 
   "notEquals" | 
@@ -77,7 +77,7 @@ export const flightDataSchema = z.object({
 
 // Validation schemas
 export const createRuleConditionSchema = z.object({
-  field: z.enum(["status", "departureTime", "arrivalTime", "gate", "terminal", "flightNumber", "price"]),
+  field: z.enum(["status", "departureTime", "arrivalTime", "gate", "terminal", "flightNumber"]),
   operator: z.enum([
     "equals", 
     "notEquals", 
@@ -109,7 +109,7 @@ export const createRuleSchema = z.object({
   description: z.string().optional(),
   operator: z.enum(["AND", "OR"]).default("AND"),
   schedule: z.string().optional(),
-  conditions: z.array(createRuleConditionSchema).min(1, "At least one condition is required"),
+  conditions: z.array(createRuleConditionSchema).optional().default([]),
   alerts: z.array(createAlertSchema).min(1, "At least one alert is required"),
 });
 
@@ -242,7 +242,7 @@ export function evaluateCondition(condition: RuleCondition, flightData: any): bo
 
 // Helper function to evaluate an entire rule
 export function evaluateRule(rule: Rule, flightData: any): boolean {
-  if (!rule.conditions || rule.conditions.length === 0) return false;
+  if (!rule.conditions || rule.conditions.length === 0) return true; // If no conditions, rule always matches
   
   if (rule.operator === "AND") {
     return rule.conditions.every(condition => evaluateCondition(condition, flightData));

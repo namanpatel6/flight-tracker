@@ -70,46 +70,48 @@ export async function POST(req: NextRequest) {
         data: {
           name,
           description,
-          operator,
+          operator: operator || "AND", // Set a default of AND if operator is not provided
           schedule,
           userId: session.user.id,
         },
       });
 
-      // Process conditions
-      for (const condition of conditions) {
-        let flightId = condition.flightId;
-        let trackedFlightId = condition.trackedFlightId;
-        
-        // If flight data is provided but no flightId, create a new Flight record
-        if (condition.flightData && !flightId) {
-          const newFlight = await tx.flight.create({
+      // Process conditions if provided
+      if (conditions && conditions.length > 0) {
+        for (const condition of conditions) {
+          let flightId = condition.flightId;
+          let trackedFlightId = condition.trackedFlightId;
+          
+          // If flight data is provided but no flightId, create a new Flight record
+          if (condition.flightData && !flightId) {
+            const newFlight = await tx.flight.create({
+              data: {
+                flightNumber: condition.flightData.flightNumber,
+                airline: condition.flightData.airline,
+                departureAirport: condition.flightData.departureAirport,
+                arrivalAirport: condition.flightData.arrivalAirport,
+                departureTime: condition.flightData.departureTime ? new Date(condition.flightData.departureTime) : null,
+                arrivalTime: condition.flightData.arrivalTime ? new Date(condition.flightData.arrivalTime) : null,
+                status: condition.flightData.status,
+                gate: condition.flightData.gate,
+                terminal: condition.flightData.terminal,
+                // Removed price field
+              }
+            });
+            flightId = newFlight.id;
+          }
+          
+          await tx.ruleCondition.create({
             data: {
-              flightNumber: condition.flightData.flightNumber,
-              airline: condition.flightData.airline,
-              departureAirport: condition.flightData.departureAirport,
-              arrivalAirport: condition.flightData.arrivalAirport,
-              departureTime: condition.flightData.departureTime ? new Date(condition.flightData.departureTime) : null,
-              arrivalTime: condition.flightData.arrivalTime ? new Date(condition.flightData.arrivalTime) : null,
-              status: condition.flightData.status,
-              gate: condition.flightData.gate,
-              terminal: condition.flightData.terminal,
-              price: condition.flightData.price,
-            }
+              field: condition.field,
+              operator: condition.operator,
+              value: condition.value,
+              ruleId: newRule.id,
+              flightId,
+              trackedFlightId,
+            },
           });
-          flightId = newFlight.id;
         }
-        
-        await tx.ruleCondition.create({
-          data: {
-            field: condition.field,
-            operator: condition.operator,
-            value: condition.value,
-            ruleId: newRule.id,
-            flightId,
-            trackedFlightId,
-          },
-        });
       }
 
       // Process alerts
@@ -142,7 +144,7 @@ export async function POST(req: NextRequest) {
                 status: alert.flightData.status,
                 gate: alert.flightData.gate,
                 terminal: alert.flightData.terminal,
-                price: alert.flightData.price,
+                // Removed price field
               }
             });
             flightId = newFlight.id;

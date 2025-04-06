@@ -330,6 +330,8 @@ function generateRuleNotificationMessage(rule: Rule, alert: Alert, flight: any):
         return `Rule "${rule.name}": Flight ${flightNumber} has departed at ${new Date(change.departureTime).toLocaleTimeString()}`;
       case "ARRIVAL":
         return `Rule "${rule.name}": Flight ${flightNumber} has arrived at ${new Date(change.arrivalTime).toLocaleTimeString()}`;
+      default:
+        return `Rule "${rule.name}": Alert triggered for flight ${flightNumber}`;
     }
   }
   

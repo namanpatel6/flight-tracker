@@ -54,7 +54,6 @@ const ALERT_TYPES = [
   { id: 'GATE_CHANGE', label: 'Gate Change' },
   { id: 'DEPARTURE', label: 'Departure Update' },
   { id: 'ARRIVAL', label: 'Arrival Update' },
-  { id: 'PRICE_CHANGE', label: 'Price Change' },
 ];
 
 // Define condition fields
@@ -65,7 +64,6 @@ const CONDITION_FIELDS = [
   { id: 'gate', label: 'Gate' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'flightNumber', label: 'Flight Number' },
-  { id: 'price', label: 'Price' },
 ];
 
 // Define condition operators
@@ -86,7 +84,6 @@ const CONDITION_OPERATORS = [
 const basicInfoSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  operator: z.enum(['AND', 'OR']).default('AND'),
 });
 
 // Flight search schema
@@ -117,7 +114,6 @@ const FIELD_TO_ALERT_TYPE = {
   'gate': 'GATE_CHANGE',
   'terminal': 'GATE_CHANGE',
   'flightNumber': 'STATUS_CHANGE',
-  'price': 'PRICE_CHANGE',
 };
 
 // Condition schema
@@ -185,7 +181,6 @@ export function CreateRuleButton() {
     defaultValues: {
       name: '',
       description: '',
-      operator: 'AND',
     },
   });
   
@@ -470,19 +465,6 @@ export function CreateRuleButton() {
       },
     },
     {
-      title: 'Conditions',
-      description: 'Define the conditions for your rule',
-      validate: async () => {
-        // Check if there are conditions
-        if (conditions.length === 0) {
-          return false;
-        }
-        
-        // Validate that all conditions have required fields
-        return conditions.every(c => c.field && c.operator && c.value);
-      },
-    },
-    {
       title: 'Alert Configuration',
       description: 'Configure the alerts for your rule',
       validate: async () => {
@@ -513,27 +495,26 @@ export function CreateRuleButton() {
       }
       
       if (isValid) {
-        // If moving from conditions to alerts, update recommended alert types
-        if (currentStep === 2) {
-          updateRecommendedAlertTypes(conditions);
+        // If moving from flight search to alerts, update recommended alert types based on flight
+        if (currentStep === 1) {
+          // We'll recommend all alert types since there are no conditions
+          setRecommendedAlertTypes(ALERT_TYPES.map(type => type.id));
           
           // Auto-select recommended alert types if none are selected yet
-          if (selectedAlertTypes.length === 0 && recommendedAlertTypes.length > 0) {
-            setSelectedAlertTypes([...recommendedAlertTypes]);
+          if (selectedAlertTypes.length === 0) {
+            setSelectedAlertTypes(ALERT_TYPES.map(type => type.id));
           }
         }
         
         // If moving from alerts to summary, generate alerts from selected types
-        if (currentStep === 3) {
+        if (currentStep === 2) {
           generateAlertsFromSelectedTypes();
         }
         
         setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
       } else if (currentStep === 1 && selectedFlights.length === 0) {
         toast.error('Please select at least one flight before continuing');
-      } else if (currentStep === 2 && conditions.length === 0) {
-        toast.error('Please add at least one condition before continuing');
-      } else if (currentStep === 3 && selectedAlertTypes.length === 0) {
+      } else if (currentStep === 2 && selectedAlertTypes.length === 0) {
         toast.error('Please select at least one alert type before continuing');
       } else {
         // Generic validation error message if none of the specific cases match
@@ -552,7 +533,6 @@ export function CreateRuleButton() {
   };
 
   const handleSubmit = async () => {
-    // Validate the current step first
     const currentStepObj = steps[currentStep];
     const isValid = await currentStepObj.validate();
     
@@ -583,8 +563,7 @@ export function CreateRuleButton() {
         body: JSON.stringify({
           name: basicInfo.name,
           description: basicInfo.description,
-          operator: basicInfo.operator,
-          conditions,
+          operator: "AND", // Add default operator
           alerts,
         }),
       });
@@ -616,7 +595,6 @@ export function CreateRuleButton() {
     flightSearchForm.reset();
     setSearchResults([]);
     setSelectedFlights([]);
-    setConditions([]);
     setAlerts([]);
     setRecommendedAlertTypes([]);
     setSelectedAlertTypes([]);
@@ -693,34 +671,6 @@ export function CreateRuleButton() {
                       </FormControl>
                       <FormDescription>
                         Additional details about this rule.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={basicInfoForm.control}
-                  name="operator"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Operator</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select an operator" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="AND">AND (All conditions must match)</SelectItem>
-                          <SelectItem value="OR">OR (Any condition can match)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        How to combine multiple conditions.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -825,118 +775,8 @@ export function CreateRuleButton() {
             </div>
           )}
           
-          {/* Step 3: Conditions */}
+          {/* Step 3: Alert Configuration */}
           {currentStep === 2 && (
-            <div className="space-y-4">
-              <div className="mb-4">
-                <h3 className="text-base font-medium">Define Conditions</h3>
-                <p className="text-sm text-muted-foreground">
-                  Specify the conditions that will trigger this rule.
-                </p>
-              </div>
-              
-              {conditions.map((condition, index) => (
-                <Card key={index}>
-                  <CardContent className="pt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium">Field</label>
-                        <Select
-                          value={condition.field}
-                          onValueChange={(value) => handleConditionChange(index, 'field', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select field" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CONDITION_FIELDS.map((field) => (
-                              <SelectItem key={field.id} value={field.id}>
-                                {field.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium">Operator</label>
-                        <Select
-                          value={condition.operator}
-                          onValueChange={(value) => handleConditionChange(index, 'operator', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select operator" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CONDITION_OPERATORS.map((op) => (
-                              <SelectItem key={op.id} value={op.id}>
-                                {op.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium">Value</label>
-                        <Input
-                          value={condition.value}
-                          onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
-                          placeholder="Enter value"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium">Flight</label>
-                        <Select
-                          value={condition.flightData?.flightNumber || ""}
-                          onValueChange={(value) => {
-                            const selectedFlight = selectedFlights.find(f => f.flightNumber === value);
-                            if (selectedFlight) {
-                              handleConditionFlightChange(index, selectedFlight.id);
-                            }
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select flight" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {selectedFlights.map((flight) => (
-                              <SelectItem key={flight.id} value={flight.flightNumber}>
-                                {flight.flightNumber} ({flight.departureAirport} → {flight.arrivalAirport})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    {conditions.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-2"
-                        onClick={() => handleRemoveCondition(index)}
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-              
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleAddCondition}
-              >
-                Add Condition
-              </Button>
-            </div>
-          )}
-          
-          {/* Step 4: Alert Configuration */}
-          {currentStep === 3 && (
             <div className="space-y-4">
               <div className="mb-4">
                 <h3 className="text-base font-medium">Configure Alerts</h3>
