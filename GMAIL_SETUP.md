@@ -34,68 +34,64 @@ EMAIL_FROM="Flight Tracker <your-gmail@gmail.com>"
 
 # Environment
 NODE_ENV="production"
+
+# Enable rules polling for notifications
+ENABLE_RULES_POLLING="true"
+RULES_POLLING_INTERVAL_MINUTES="5"
 ```
 
 Replace:
 - `your-gmail@gmail.com` with your actual Gmail address
 - `your-16-character-app-password` with the App Password you generated in Step 1
 
-## Step 3: Test Your Configuration
+## Step 3: Testing Email Notifications
 
-Run the production email test script:
+Once you have configured your credentials, you can test the email notification system using one of the following methods:
 
-```bash
-npm run test:prod-email
+### Method 1: Test API Endpoint
+
+Use the test API endpoint to send a test notification email:
+
+```
+curl -X GET "http://localhost:3000/api/test-email" -H "x-api-key: test"
 ```
 
-This will send a test email to your Gmail address using the production configuration.
+Or in PowerShell:
 
-## Step 4: Test the Full Notification Flow
-
-1. Make sure you have a tracked flight with an alert:
-
-```bash
-npm run create:gmail-flight -- "your-gmail@gmail.com"
+```powershell
+Invoke-WebRequest -Uri "http://localhost:3000/api/test-email" -Headers @{"x-api-key"="test"} | Select-Object -ExpandProperty Content
 ```
 
-2. Simulate a flight status change:
+### Method 2: Simulate Rule Processing with Test Mode
 
-```bash
-npm run simulate:change -- "your-gmail@gmail.com"
+Use the process-rules endpoint with test mode to simulate notifications:
+
+```
+curl -X GET "http://localhost:3000/api/cron/process-rules?test=true" -H "x-api-key: test"
 ```
 
-3. Trigger the production cron job:
+Or in PowerShell:
 
-```bash
-npm run trigger:prod-cron
+```powershell
+Invoke-WebRequest -Uri "http://localhost:3000/api/cron/process-rules?test=true" -Headers @{"x-api-key"="test"} | Select-Object -ExpandProperty Content
 ```
 
-4. Check your Gmail inbox for the notification email
+## Step 4: Production Deployment
 
-## Troubleshooting
+For production deployment with Vercel:
 
-### Email Not Sending
+1. Make sure you've set up all the environment variables in your Vercel project
+2. The cron job is configured in vercel.json to run every 30 minutes:
 
-If emails are not being sent, check the following:
-
-1. Verify that your App Password is correct
-2. Make sure 2-Step Verification is enabled on your Google Account
-3. Check that your `.env.local` file has the correct settings
-4. Look for any error messages in the console output
-
-### Gmail Security
-
-Gmail may block sign-in attempts from apps it deems less secure. If you're having issues:
-
-1. Check your Gmail inbox for any security alerts
-2. Go to your [Google Account Security settings](https://myaccount.google.com/security) and look for any security alerts
-3. You might need to confirm that the sign-in attempt was from you
-
-## Gmail Sending Limits
-
-Be aware that Gmail has sending limits:
-
-- Free Gmail accounts: 500 emails per day
-- Google Workspace accounts: 2,000 emails per day
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/process-rules",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}
+```
 
 For a production application with many users, consider using a dedicated email service like SendGrid, Mailgun, or Amazon SES. 

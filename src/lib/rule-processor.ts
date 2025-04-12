@@ -3,6 +3,7 @@ import { batchFetchFlights, getOptimalPollingInterval } from "./aero-api";
 import { evaluateCondition, ConditionField, ConditionOperator, RuleCondition as TypedRuleCondition } from "./rules";
 import { Flight } from "@/types/flight";
 import { Rule, Alert, RuleCondition } from "@prisma/client";
+import { sendNotificationEmail, createFlightAlertEmail } from './notifications';
 
 // Track last poll times for rules to implement adaptive polling
 const ruleLastPollTimes: Record<string, number> = {};
@@ -233,6 +234,31 @@ export async function processRules(): Promise<void> {
             });
             
             console.log(`Notification created for user ${alert.userId} for rule ${rule.name}`);
+            
+            // Send email notification if user has email
+            if (alert.user.email) {
+              // Create email content
+              const emailData = createFlightAlertEmail({
+                userName: alert.user.name || '',
+                flightNumber: flightWithChanges.flightNumber,
+                alertType: alert.type,
+                message: notificationMessage,
+              });
+              
+              // Send the email
+              const emailResult = await sendNotificationEmail({
+                to: alert.user.email,
+                subject: emailData.subject,
+                html: emailData.html,
+                text: emailData.text,
+              });
+              
+              if (emailResult.success) {
+                console.log(`Email notification sent to ${alert.user.email} for rule ${rule.name}`);
+              } else {
+                console.error(`Failed to send email notification: ${emailResult.message}`);
+              }
+            }
           } catch (error) {
             console.error('Error processing rule notification:', error);
           }

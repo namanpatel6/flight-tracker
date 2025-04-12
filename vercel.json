@@ -1,8 +1,22 @@
 {
-  "crons": [],
+  "crons": [
+    {
+      "path": "/api/cron/process-rules",
+      "schedule": "*/30 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/cron/update-flights",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/api/cron/process-rules",
       "headers": [
         {
           "key": "Cache-Control",
