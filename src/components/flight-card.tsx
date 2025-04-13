@@ -5,18 +5,41 @@ import { Flight } from "@/types/flight";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { formatDateWithTimezone, calculateDuration, getStatusDescription } from "@/lib/utils";
-import { Bell, BellOff, Plane, ArrowRight, Clock } from "lucide-react";
+import { Plane, ArrowRight, Clock, AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface FlightCardProps {
   flight: Flight;
-  isTracked: boolean;
-  onTrack: () => void;
-  onUntrack: () => void;
 }
 
-export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCardProps) {
+export function FlightCard({ flight }: FlightCardProps) {
+  // Format dates for the URL
+  const departureDate = flight.departure.scheduled 
+    ? new Date(flight.departure.scheduled).toISOString().split('T')[0] 
+    : new Date().toISOString().split('T')[0];
+  
+  const arrivalDate = flight.arrival.scheduled 
+    ? new Date(flight.arrival.scheduled).toISOString().split('T')[0] 
+    : departureDate; // Default to departure date if arrival date isn't available
+  
   return (
-    <Card className="overflow-hidden">
+    <Card className="hover:bg-muted/50 transition-all relative overflow-hidden group border-muted-foreground/20">
+      {flight.flight_status && (
+        <div className={cn(
+          "absolute right-0 top-0 px-3 py-1 text-xs font-medium text-white",
+          flight.flight_status === 'scheduled' && 'bg-blue-500',
+          flight.flight_status === 'active' && 'bg-green-500',
+          flight.flight_status === 'landed' && 'bg-orange-500',
+          flight.flight_status === 'cancelled' && 'bg-red-500',
+          flight.flight_status === 'incident' && 'bg-red-700',
+          flight.flight_status === 'diverted' && 'bg-purple-500',
+          flight.flight_status === 'unknown' && 'bg-gray-500',
+          flight.flight_status === 'en-route' && 'bg-green-500',
+          flight.flight_status === 'arrived' && 'bg-teal-500',
+        )}>
+          {flight.flight_status}
+        </div>
+      )}
       <CardContent className="p-0">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
@@ -28,17 +51,23 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
                 {formatDateWithTimezone(flight.departure.scheduled)}
               </p>
             </div>
-            <div className={`text-sm font-medium px-3 py-1 rounded-full ${
-              flight.flight_status === "scheduled" ? "bg-blue-100 text-blue-800" :
-              flight.flight_status === "active" ? "bg-green-100 text-green-800" :
-              flight.flight_status === "landed" ? "bg-green-100 text-green-800" :
-              flight.flight_status === "cancelled" ? "bg-red-100 text-red-800" :
-              flight.flight_status === "incident" ? "bg-red-100 text-red-800" :
-              flight.flight_status === "diverted" ? "bg-yellow-100 text-yellow-800" :
-              "bg-gray-100 text-gray-800"
-            }`}>
-              {flight.flight_status.charAt(0).toUpperCase() + flight.flight_status.slice(1)}
-            </div>
+            {flight.flight_status && (
+              <div className={cn(
+                "flex items-center px-3 py-1 rounded-full text-sm font-medium",
+                flight.flight_status === 'scheduled' && 'text-blue-700 bg-blue-50',
+                flight.flight_status === 'active' && 'text-green-700 bg-green-50',
+                flight.flight_status === 'landed' && 'text-orange-700 bg-orange-50',
+                flight.flight_status === 'cancelled' && 'text-red-700 bg-red-50',
+                flight.flight_status === 'incident' && 'text-red-700 bg-red-50',
+                flight.flight_status === 'diverted' && 'text-purple-700 bg-purple-50',
+                flight.flight_status === 'unknown' && 'text-gray-700 bg-gray-50',
+                flight.flight_status === 'en-route' && 'text-green-700 bg-green-50',
+                flight.flight_status === 'arrived' && 'text-teal-700 bg-teal-50',
+              )}>
+                <AlertCircle className="h-4 w-4 mr-2" />
+                <span>{flight.flight_status}</span>
+              </div>
+            )}
           </div>
 
           {/* Display price information if available */}
@@ -52,7 +81,9 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
             <div className="md:col-span-3 space-y-1">
               <div className="text-sm text-muted-foreground">Departure</div>
               <div className="flex items-center space-x-2">
-                <div className="font-medium">{flight.departure.airport} ({flight.departure.iata})</div>
+                <div className="font-medium">
+                  {flight.departure.iata}
+                </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -75,7 +106,9 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
             <div className="md:col-span-3 space-y-1">
               <div className="text-sm text-muted-foreground">Arrival</div>
               <div className="flex items-center space-x-2">
-                <div className="font-medium">{flight.arrival.airport} ({flight.arrival.iata})</div>
+                <div className="font-medium">
+                  {flight.arrival.iata}
+                </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
@@ -95,22 +128,13 @@ export function FlightCard({ flight, isTracked, onTrack, onUntrack }: FlightCard
           </div>
         </div>
       </CardContent>
-      <CardFooter className="bg-muted/50 p-4 flex justify-between">
-        <Link href={`/flights/${flight.flight.iata || flight.flight.icao}${flight.price ? `?price=${encodeURIComponent(JSON.stringify(flight.price))}` : ''}`} passHref>
+      <CardFooter className="bg-muted/50 p-4 flex justify-end">
+        <Link 
+          href={`/flights/${flight.flight.iata || flight.flight.icao}/${departureDate}/${arrivalDate}`} 
+          passHref
+        >
           <Button variant="secondary">View Details</Button>
         </Link>
-        
-        {isTracked ? (
-          <Button variant="outline" onClick={onUntrack}>
-            <BellOff className="h-4 w-4 mr-2" />
-            Untrack
-          </Button>
-        ) : (
-          <Button onClick={onTrack}>
-            <Bell className="h-4 w-4 mr-2" />
-            Track
-          </Button>
-        )}
       </CardFooter>
     </Card>
   );

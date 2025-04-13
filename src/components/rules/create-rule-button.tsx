@@ -88,9 +88,8 @@ const basicInfoSchema = z.object({
 
 // Flight search schema
 const flightSearchSchema = z.object({
-  searchType: z.enum(['route', 'flightNumber']),
   flightNumber: z.string().optional(),
-  departureDate: z.date({ required_error: "Departure date is required" }),
+  departureDate: z.date({ required_error: "Departure date is required" })
 });
 
 // Selected flight schema
@@ -170,10 +169,13 @@ export function CreateRuleButton() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [airports, setAirports] = useState<Airport[]>([]);
   const [airlines, setAirlines] = useState<Airline[]>([]);
-  const [conditions, setConditions] = useState<Condition[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [recommendedAlertTypes, setRecommendedAlertTypes] = useState<string[]>([]);
   const [selectedAlertTypes, setSelectedAlertTypes] = useState<string[]>([]);
+  const [isLoadingAirlines, setIsLoadingAirlines] = useState(false);
+  const [selectedAirline, setSelectedAirline] = useState<Airline | null>(null);
+  const [flightNumberInput, setFlightNumberInput] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   
   // Forms for each step
   const basicInfoForm = useForm<z.infer<typeof basicInfoSchema>>({
@@ -187,9 +189,8 @@ export function CreateRuleButton() {
   const flightSearchForm = useForm<z.infer<typeof flightSearchSchema>>({
     resolver: zodResolver(flightSearchSchema),
     defaultValues: {
-      searchType: 'flightNumber',
       flightNumber: '',
-      departureDate: new Date(),
+      departureDate: new Date()
     },
   });
 
@@ -197,10 +198,13 @@ export function CreateRuleButton() {
   useEffect(() => {
     if (open) {
       fetchAirportsAndAirlines();
+    } else {
+      resetForm();
     }
   }, [open]);
 
   const fetchAirportsAndAirlines = async () => {
+    setIsLoadingAirlines(true);
     try {
       // Fetch airports
       const airportsResponse = await fetch('/api/airports');
@@ -218,32 +222,56 @@ export function CreateRuleButton() {
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load airports or airlines');
+      
+      // Fallback data for airlines
+      setAirlines([
+        { value: "ba", label: "British Airways", code: "BA" },
+        { value: "aa", label: "American Airlines", code: "AA" },
+        { value: "dl", label: "Delta Air Lines", code: "DL" },
+        { value: "af", label: "Air France", code: "AF" },
+        { value: "jl", label: "Japan Airlines", code: "JL" }
+      ]);
+    } finally {
+      setIsLoadingAirlines(false);
     }
   };
 
-  const handleFlightSearch = async (data: z.infer<typeof flightSearchSchema>) => {
+  const validateFlightSearch = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!flightNumberInput.trim() && !selectedAirline) {
+      newErrors.search = "Please provide at least one search parameter (flight number or airline)";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleFlightSearch = async () => {
+    if (!validateFlightSearch()) {
+      return;
+    }
+    
     setSearchLoading(true);
     setSearchResults([]);
     
     try {
       const params = new URLSearchParams();
       
-      // Limit parameters to only those supported by the Flight Radar API
-      if (data.flightNumber) {
-        params.append('flight_iata', data.flightNumber.trim());
-      }
-      // FlightRadar API doesn't directly support airline IATA filtering without flight number
-
-      // Only append date if provided
-      if (data.departureDate) {
-        params.append('flight_date', data.departureDate.toISOString().split('T')[0]);
+      // Add flight number parameter if available
+      if (flightNumberInput.trim()) {
+        params.append('flight_iata', flightNumberInput.trim());
       }
       
-      // Check if we have at least one search parameter
-      if (params.toString() === '') {
-        toast.error('Please provide at least one search parameter');
-        setSearchLoading(false);
-        return;
+      // Add airline code if available
+      if (selectedAirline?.code) {
+        params.append('airline_iata', selectedAirline.code);
+      }
+      
+      // Add departure date
+      const departureDate = flightSearchForm.getValues().departureDate;
+      if (departureDate) {
+        params.append('flight_date', departureDate.toISOString().split('T')[0]);
       }
       
       // Set a reasonable timeout for the search request
@@ -297,65 +325,40 @@ export function CreateRuleButton() {
       isSelected: true,
     }]);
 
-    // Since we're selecting a new flight, reset conditions and alerts
-    setConditions([]);
+    // Reset alerts
     setAlerts([]);
     
     // Update recommended alert types based on the selected flight
+    // Now we recommend all alert types since there are no conditions
+    setRecommendedAlertTypes(ALERT_TYPES.map(type => type.id));
+    
     toast.success(`Selected flight ${flight.flight.iata}`);
   };
 
-  const handleAddCondition = () => {
-    // Only allow adding condition if we have selected flights
-    if (selectedFlights.length === 0) {
-      toast.error('Please select at least one flight first');
-      return;
-    }
-
-    const firstFlight = selectedFlights[0];
-    
-    const newCondition: Condition = {
-      field: 'status',
-      operator: 'equals',
-      value: '',
-      flightData: {
-        flightNumber: firstFlight.flightNumber,
-        airline: firstFlight.airline,
-        departureAirport: firstFlight.departureAirport,
-        arrivalAirport: firstFlight.arrivalAirport,
-        departureTime: firstFlight.departureTime,
-        arrivalTime: firstFlight.arrivalTime,
-        price: firstFlight.price,
+  const handleSelectAlertType = (type: string) => {
+    setSelectedAlertTypes(prevSelected => {
+      if (prevSelected.includes(type)) {
+        return prevSelected.filter(t => t !== type);
+      } else {
+        return [...prevSelected, type];
       }
-    };
-    
-    setConditions([...conditions, newCondition]);
+    });
   };
 
-  const handleRemoveCondition = (index: number) => {
-    const newConditions = [...conditions];
-    newConditions.splice(index, 1);
-    setConditions(newConditions);
-  };
-
-  const handleConditionChange = (index: number, field: keyof Condition, value: string) => {
-    const newConditions = [...conditions];
-    newConditions[index] = { ...newConditions[index], [field]: value };
-    setConditions(newConditions);
-    
-    // If the field is changing, update the recommended alert types
-    if (field === 'field') {
-      updateRecommendedAlertTypes(newConditions);
+  // Generate alerts from selected alert types
+  const generateAlertsFromSelectedTypes = () => {
+    if (selectedFlights.length === 0 || selectedAlertTypes.length === 0) {
+      console.error("Cannot generate alerts: No flights or alert types selected");
+      return false;
     }
-  };
-
-  const handleConditionFlightChange = (index: number, flightId: string) => {
-    const newConditions = [...conditions];
-    const selectedFlight = selectedFlights.find(f => f.id === flightId);
     
-    if (selectedFlight) {
-      newConditions[index] = { 
-        ...newConditions[index], 
+    const selectedFlight = selectedFlights[0];
+    const newAlerts: Alert[] = [];
+    
+    for (const alertType of selectedAlertTypes) {
+      newAlerts.push({
+        type: alertType,
+        isActive: true,
         flightData: {
           flightNumber: selectedFlight.flightNumber,
           airline: selectedFlight.airline,
@@ -364,67 +367,8 @@ export function CreateRuleButton() {
           departureTime: selectedFlight.departureTime,
           arrivalTime: selectedFlight.arrivalTime,
           price: selectedFlight.price,
-        } 
-      };
-      setConditions(newConditions);
-    }
-  };
-
-  // Update recommended alert types based on selected condition fields
-  const updateRecommendedAlertTypes = (currentConditions: Condition[]) => {
-    const recommendedTypes = currentConditions.map(condition => {
-      return FIELD_TO_ALERT_TYPE[condition.field as keyof typeof FIELD_TO_ALERT_TYPE];
-    }).filter(Boolean);
-    
-    // Remove duplicates
-    setRecommendedAlertTypes([...new Set(recommendedTypes)]);
-  };
-
-  // Handle alert type selection with visual feedback instead of toast
-  const handleSelectAlertType = (type: string) => {
-    // Toggle the selection
-    setSelectedAlertTypes(prev => {
-      const isAlreadySelected = prev.includes(type);
-      if (isAlreadySelected) {
-        return prev.filter(t => t !== type);
-      } else {
-        return [...prev, type];
-      }
-    });
-  };
-
-  // Generate alerts from selected types when moving to next step
-  const generateAlertsFromSelectedTypes = () => {
-    if (selectedAlertTypes.length === 0) {
-      return false;
-    }
-    
-    // Create new alerts for each selected type
-    const newAlerts: Alert[] = [];
-    
-    // Make sure we have all selected flights
-    if (selectedFlights.length === 0) {
-      console.error("No flights selected when generating alerts");
-      toast.error("Error: No flights selected");
-      return false;
-    }
-    
-    for (const type of selectedAlertTypes) {
-      for (const flight of selectedFlights) {
-        newAlerts.push({
-          type,
-          isActive: true,
-          flightData: {
-            flightNumber: flight.flightNumber,
-            airline: flight.airline,
-            departureAirport: flight.departureAirport,
-            arrivalAirport: flight.arrivalAirport,
-            departureTime: flight.departureTime,
-            arrivalTime: flight.arrivalTime,
-            price: flight.price,
-          }
-        });
-      }
+        },
+      });
     }
     
     console.log("Generated alerts:", newAlerts);
@@ -554,7 +498,7 @@ export function CreateRuleButton() {
       
       console.log("Submitting form with alerts:", alerts);
       
-      // Create a new rule with all the collected data
+      // Create a new rule without conditions
       const response = await fetch('/api/rules', {
         method: 'POST',
         headers: {
@@ -563,7 +507,8 @@ export function CreateRuleButton() {
         body: JSON.stringify({
           name: basicInfo.name,
           description: basicInfo.description,
-          operator: "AND", // Add default operator
+          // Set a default value for operator even though conditions were removed
+          operator: "AND",
           alerts,
         }),
       });
@@ -590,14 +535,20 @@ export function CreateRuleButton() {
   };
 
   const resetForm = () => {
+    // Reset all the state
     setCurrentStep(0);
-    basicInfoForm.reset();
-    flightSearchForm.reset();
     setSearchResults([]);
     setSelectedFlights([]);
     setAlerts([]);
-    setRecommendedAlertTypes([]);
     setSelectedAlertTypes([]);
+    setRecommendedAlertTypes([]);
+    setSelectedAirline(null);
+    setFlightNumberInput("");
+    setErrors({});
+    
+    // Reset forms
+    basicInfoForm.reset();
+    flightSearchForm.reset();
   };
 
   // Clean up when changing steps
@@ -684,46 +635,71 @@ export function CreateRuleButton() {
           {currentStep === 1 && (
             <div className="space-y-6">
               <div>
-                <Form {...flightSearchForm}>
-                  <form onSubmit={flightSearchForm.handleSubmit(handleFlightSearch)} className="space-y-4">
-                    <div>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  handleFlightSearch();
+                }} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Airline</label>
+                      <Dropdown
+                        options={airlines}
+                        value={selectedAirline}
+                        onChange={setSelectedAirline}
+                        placeholder="Select airline"
+                        isLoading={isLoadingAirlines}
+                        searchPlaceholder="Search airlines..."
+                        noResultsText="No airlines found"
+                        loadingText="Loading airlines..."
+                        className={errors.search ? "border-red-500" : ""}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
                       <label className="text-sm font-medium">Flight Number</label>
                       <Input 
                         placeholder="e.g. BA123" 
-                        onChange={(e) => flightSearchForm.setValue('flightNumber', e.target.value)}
+                        value={flightNumberInput}
+                        onChange={(e) => setFlightNumberInput(e.target.value)}
+                        className={errors.search ? "border-red-500" : ""}
                       />
                     </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Departure Date</label>
-                      <DatePicker
-                        value={flightSearchForm.getValues().departureDate}
-                        onChange={(date) => date && flightSearchForm.setValue('departureDate', date)}
-                        placeholder="Select date"
-                      />
-                    </div>
-                    
-                    <div className="text-sm text-muted-foreground mt-2">
-                      <p>Note: You can only select one flight per rule.</p>
-                    </div>
-                    
-                    <div className="flex justify-start">
-                      <Button type="submit" disabled={searchLoading}>
-                        {searchLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Searching...
-                          </>
-                        ) : (
-                          <>
-                            <Search className="mr-2 h-4 w-4" />
-                            Search Flights
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Date</label>
+                    <DatePicker
+                      value={flightSearchForm.getValues().departureDate}
+                      onChange={(date) => date && flightSearchForm.setValue('departureDate', date)}
+                      placeholder="Select date"
+                      minDate={new Date()}
+                    />
+                  </div>
+                  
+                  {errors.search && (
+                    <p className="text-xs text-red-500">{errors.search}</p>
+                  )}
+                  
+                  <div className="text-sm text-muted-foreground mt-2">
+                    <p>Note: You can only select one flight per rule.</p>
+                  </div>
+                  
+                  <div className="flex justify-start">
+                    <Button type="submit" disabled={searchLoading}>
+                      {searchLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="mr-2 h-4 w-4" />
+                          Search Flights
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
               </div>
               
               {searchResults.length > 0 && (
@@ -763,7 +739,6 @@ export function CreateRuleButton() {
                             <Checkbox checked={isSelected} />
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {flight.airline?.name || 'Unknown Airline'} • 
                             {flight.departure.scheduled ? ` Departure: ${formatDateWithTimezone(flight.departure.scheduled)}` : ''}
                           </div>
                         </div>

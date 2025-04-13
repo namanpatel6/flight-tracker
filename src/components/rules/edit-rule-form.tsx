@@ -41,43 +41,6 @@ const ALERT_TYPES = [
   { id: 'ARRIVAL', label: 'Arrival Update' },
 ];
 
-// Define condition fields
-const CONDITION_FIELDS = [
-  { id: 'status', label: 'Status' },
-  { id: 'departureTime', label: 'Departure Time' },
-  { id: 'arrivalTime', label: 'Arrival Time' },
-  { id: 'gate', label: 'Gate' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'flightNumber', label: 'Flight Number' },
-];
-
-// Define condition operators
-const CONDITION_OPERATORS = [
-  { id: 'equals', label: 'Equals' },
-  { id: 'notEquals', label: 'Not Equals' },
-  { id: 'contains', label: 'Contains' },
-  { id: 'notContains', label: 'Not Contains' },
-  { id: 'greaterThan', label: 'Greater Than' },
-  { id: 'lessThan', label: 'Less Than' },
-  { id: 'greaterThanOrEqual', label: 'Greater Than or Equal' },
-  { id: 'lessThanOrEqual', label: 'Less Than or Equal' },
-  { id: 'between', label: 'Between' },
-  { id: 'changed', label: 'Changed' },
-];
-
-// Define types for our rule data
-interface RuleCondition {
-  id: string;
-  field: string;
-  operator: string;
-  value: string;
-  flightId?: string | null;
-  flight?: {
-    id: string;
-    flightNumber: string;
-  } | null;
-}
-
 interface Alert {
   id: string;
   type: string;
@@ -89,6 +52,14 @@ interface Alert {
   } | null;
 }
 
+interface TrackedFlight {
+  id: string;
+  flightNumber: string;
+  departureAirport?: string;
+  arrivalAirport?: string;
+  departureTime?: string;
+}
+
 interface Rule {
   id: string;
   name: string;
@@ -98,55 +69,41 @@ interface Rule {
   schedule: string | null;
   createdAt: Date;
   updatedAt: Date;
-  conditions: RuleCondition[];
   alerts: Alert[];
 }
 
-interface TrackedFlight {
-  id: string;
-  flightNumber: string;
-  departureAirport: string;
-  arrivalAirport: string;
-}
-
-// Define the form schema
-const formSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
-  description: z.string().max(500).nullable().optional(),
-  isActive: z.boolean().default(true),
-  schedule: z.string().nullable().optional(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-
+// Define props for the component
 interface EditRuleFormProps {
   rule: Rule;
 }
+
+// Form schema
+const formSchema = z.object({
+  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+  schedule: z.string().optional(),
+});
+
+// Form values type
+type FormValues = z.infer<typeof formSchema>;
 
 export function EditRuleForm({ rule }: EditRuleFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("basic");
-  const [conditions, setConditions] = useState<RuleCondition[]>(rule.conditions || []);
   const [alerts, setAlerts] = useState<Alert[]>(rule.alerts || []);
   const [trackedFlights, setTrackedFlights] = useState<TrackedFlight[]>([]);
   const [newAlertType, setNewAlertType] = useState<string>("STATUS_CHANGE");
-  
-  // Get the flight from the first condition - this will be used for all conditions and alerts
-  const ruleFlight = useMemo(() => {
-    if (conditions.length > 0 && conditions[0].flightId) {
-      return conditions[0].flightId;
-    }
-    return null;
-  }, [conditions]);
+  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(
+    alerts.length > 0 && alerts[0].flightId ? alerts[0].flightId : null
+  );
   
   // Debug rule data on load
   useEffect(() => {
     console.log("Rule data loaded:", rule);
-    console.log("Initial conditions:", rule.conditions);
     console.log("Initial alerts:", rule.alerts);
-    console.log("Rule flight:", ruleFlight);
-  }, [rule, ruleFlight]);
+  }, [rule]);
 
   // Fetch tracked flights when component mounts
   useEffect(() => {
@@ -159,6 +116,11 @@ export function EditRuleForm({ rule }: EditRuleFormProps) {
       if (response.ok) {
         const flights = await response.json();
         setTrackedFlights(flights);
+        
+        // Set default flight if none is selected and there are tracked flights
+        if (!selectedFlightId && flights.length > 0) {
+          setSelectedFlightId(flights[0].id);
+        }
       }
     } catch (error) {
       console.error('Error fetching tracked flights:', error);
@@ -180,30 +142,6 @@ export function EditRuleForm({ rule }: EditRuleFormProps) {
   // Get the current rule active status
   const ruleIsActive = form.watch("isActive");
 
-  // Condition management
-  const handleAddCondition = () => {
-    const newCondition: RuleCondition = {
-      id: `temp-${Date.now()}`, // Temporary ID for UI purposes
-      field: "status",
-      operator: "equals",
-      value: "",
-      flightId: ruleFlight || (trackedFlights.length > 0 ? trackedFlights[0].id : undefined)
-    };
-    setConditions([...conditions, newCondition]);
-  };
-
-  const handleRemoveCondition = (index: number) => {
-    const newConditions = [...conditions];
-    newConditions.splice(index, 1);
-    setConditions(newConditions);
-  };
-
-  const handleConditionChange = (index: number, field: keyof RuleCondition, value: string) => {
-    const newConditions = [...conditions];
-    newConditions[index] = { ...newConditions[index], [field]: value };
-    setConditions(newConditions);
-  };
-
   // Alert management
   const handleAddAlert = () => {
     if (!newAlertType) {
@@ -211,13 +149,17 @@ export function EditRuleForm({ rule }: EditRuleFormProps) {
       return;
     }
 
-    // Always use the flight from the rule conditions
+    if (!selectedFlightId) {
+      toast.error("Please select a flight");
+      return;
+    }
+
     const newAlert: Alert = {
       id: `temp-${Date.now()}`, // Temporary ID for UI purposes
       type: newAlertType,
       isActive: ruleIsActive, // Set active status based on rule's status
-      flightId: ruleFlight || (trackedFlights.length > 0 ? trackedFlights[0].id : undefined),
-      flight: trackedFlights.find(f => f.id === (ruleFlight || (trackedFlights.length > 0 ? trackedFlights[0].id : undefined)))
+      flightId: selectedFlightId,
+      flight: trackedFlights.find(f => f.id === selectedFlightId)
     };
     
     setAlerts([...alerts, newAlert]);
@@ -240,7 +182,6 @@ export function EditRuleForm({ rule }: EditRuleFormProps) {
       setIsSubmitting(true);
       
       // Log current state before submission
-      console.log("Submitting with conditions:", conditions);
       console.log("Submitting with alerts:", alerts);
       
       // Clean up the values
@@ -250,21 +191,12 @@ export function EditRuleForm({ rule }: EditRuleFormProps) {
         schedule: values.schedule || null,
         operator: "AND", // Add default operator
         
-        // Include conditions with all necessary data
-        conditions: conditions.map(c => ({
-          id: c.id && !c.id.startsWith('temp-') ? c.id : undefined,
-          field: c.field,
-          operator: c.operator,
-          value: c.value,
-          flightId: ruleFlight || c.flightId || null
-        })),
-        
-        // Include alerts with all necessary data and ensure they all use the same flight
+        // Include alerts with all necessary data
         alerts: alerts.map(a => ({
           id: a.id && !a.id.startsWith('temp-') ? a.id : undefined,
           type: a.type,
           isActive: a.isActive,
-          flightId: ruleFlight || a.flightId || null
+          flightId: a.flightId || null
         }))
       };
 
@@ -292,224 +224,232 @@ export function EditRuleForm({ rule }: EditRuleFormProps) {
       router.refresh();
     } catch (error) {
       console.error("Error updating rule:", error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to update rule"
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to update rule");
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="flex justify-center w-full">
-      <div className="w-full max-w-3xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit Rule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="mb-4">
-                <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                <TabsTrigger value="alerts">Alerts</TabsTrigger>
-              </TabsList>
+    <div className="bg-card rounded-md border p-4">
+      <Tabs defaultValue="basic" value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="basic">Basic Information</TabsTrigger>
+          <TabsTrigger value="alerts">Alerts</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="basic">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rule Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter rule name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               
-              <TabsContent value="basic">
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Rule Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter rule name" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            A descriptive name for your rule
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Enter rule description (optional)"
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Optional description of what this rule does
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="isActive"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Active Status</FormLabel>
-                            <FormDescription>
-                              Enable or disable this rule
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="schedule"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Schedule (Optional)</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Cron expression (e.g., '0 0 * * *')"
-                              {...field}
-                              value={field.value || ""}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Optional cron expression for scheduled evaluation
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Updating..." : "Update Rule"}
-                    </Button>
-                  </form>
-                </Form>
-              </TabsContent>
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Enter rule description (optional)"
+                        className="h-32 resize-none" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               
-              <TabsContent value="alerts">
-                <Form {...form}>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-lg font-medium">Rule Alerts</h3>
+              <FormField
+                control={form.control}
+                name="schedule"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Schedule</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Schedule (e.g., Every day at 9am)" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Specify when this rule should run. Leave empty for real-time processing.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <div>
+                      <FormLabel>Active Status</FormLabel>
+                      <FormDescription>
+                        Enable or disable this rule
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    router.push(`/dashboard/rules/${rule.id}`);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </TabsContent>
+        
+        <TabsContent value="alerts">
+          <Form {...form}>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Rule Alerts</h3>
+              </div>
+              
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <FormLabel>Alert Type</FormLabel>
+                      <Select
+                        value={newAlertType}
+                        onValueChange={setNewAlertType}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select alert type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ALERT_TYPES.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
-                    <Card>
-                      <CardContent className="pt-4">
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div>
-                            <FormLabel>Alert Type</FormLabel>
-                            <Select
-                              value={newAlertType}
-                              onValueChange={setNewAlertType}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select alert type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ALERT_TYPES.map((type) => (
-                                  <SelectItem key={type.id} value={type.id}>
-                                    {type.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          <div>
-                            <FormLabel>Flight</FormLabel>
-                            <Input 
-                              value={trackedFlights.find(f => f.id === ruleFlight)?.flightNumber || "Using flight from the rule"}
-                              disabled={true}
-                              className="bg-muted"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">Flight selection is determined by rule conditions</p>
-                          </div>
+                    <div>
+                      <FormLabel>Flight</FormLabel>
+                      <Select
+                        value={selectedFlightId || ""}
+                        onValueChange={setSelectedFlightId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select flight" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {trackedFlights.map((flight) => (
+                            <SelectItem key={flight.id} value={flight.id}>
+                              {flight.flightNumber}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    type="button" 
+                    onClick={handleAddAlert}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Alert
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              <div className="space-y-4">
+                <h4 className="font-medium">Current Alerts</h4>
+                
+                {alerts.length === 0 ? (
+                  <div className="text-center p-4 border rounded-md bg-muted">
+                    <p className="text-muted-foreground">No alerts configured for this rule.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Add alerts using the form above.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {alerts.map((alert, index) => (
+                      <div key={alert.id} className="flex items-center justify-between border rounded-md p-3">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">{ALERT_TYPES.find(t => t.id === alert.type)?.label || alert.type}</Badge>
+                          {alert.flight && (
+                            <Badge variant="outline">
+                              {alert.flight.flightNumber}
+                            </Badge>
+                          )}
                         </div>
-                        
-                        <Button 
-                          variant="outline" 
-                          onClick={handleAddAlert}
-                          disabled={trackedFlights.length === 0 || !ruleFlight}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAlert(index)}
                         >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Alert
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
-                      </CardContent>
-                    </Card>
-                    
-                    {alerts.length === 0 ? (
-                      <div className="text-center p-8 border rounded-md">
-                        <p className="text-muted-foreground">No alerts defined yet.</p>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {alerts.map((alert, index) => {
-                          const flight = trackedFlights.find(f => f.id === alert.flightId);
-                          const alertType = ALERT_TYPES.find(t => t.id === alert.type);
-                          
-                          return (
-                            <div key={alert.id} className="flex items-center justify-between p-3 border rounded-md">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="secondary">
-                                  {alertType?.label || alert.type.replace(/_/g, ' ')}
-                                </Badge>
-                                {flight && (
-                                  <Badge variant="outline">
-                                    {flight.flightNumber}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center">
-                                  <span className={`relative flex h-3 w-3 rounded-full ${ruleIsActive ? 'bg-green-500' : 'bg-gray-300'}`}></span>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-destructive"
-                                  onClick={() => handleRemoveAlert(index)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    ))}
                   </div>
-
-                  <div className="mt-6">
-                    <Button type="button" onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>
-                      {isSubmitting ? "Updating..." : "Update Rule"}
-                    </Button>
-                  </div>
-                </Form>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    router.push(`/dashboard/rules/${rule.id}`);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={form.handleSubmit(onSubmit)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          </Form>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 } 

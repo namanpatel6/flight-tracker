@@ -36,43 +36,37 @@ export async function GET() {
     const userId = session.user.id;
     console.log(`Fetching rule flights for user: ${userId}`);
     
-    // STEP 1: Primary approach - Get all active rules with flight conditions
+    // Get all active rules with alert flights
     const activeRules = await db.rule.findMany({
       where: {
         userId: userId,
         isActive: true,
       },
       include: {
-        conditions: {
-          where: {
-            flightId: {
-              not: null
-            }
-          },
+        alerts: {
           include: {
-            flight: true, // Include Flight model
+            flight: true,
           },
         },
-        alerts: true,
       },
     });
     
     console.log(`Found ${activeRules.length} active rules`);
     
-    // Extract and deduplicate flights from rule conditions
+    // Extract and deduplicate flights from rule alerts
     const flightsMap = new Map();
     
     // Process each rule
     for (const rule of activeRules) {
-      // Get only conditions that have flights
-      const flightConditions = rule.conditions.filter(c => c.flight !== null);
+      // Get only alerts that have flights
+      const flightAlerts = rule.alerts.filter(a => a.flight !== null);
       
-      console.log(`Rule ${rule.name} has ${flightConditions.length} flight conditions`);
+      console.log(`Rule ${rule.name} has ${flightAlerts.length} flight alerts`);
       
-      for (const condition of flightConditions) {
-        if (!condition.flight) continue;
+      for (const alert of flightAlerts) {
+        if (!alert.flight) continue;
         
-        const flight = condition.flight;
+        const flight = alert.flight;
         
         // If we haven't seen this flight before, add it
         if (!flightsMap.has(flight.id)) {
@@ -93,76 +87,45 @@ export async function GET() {
             isActive: rule.isActive
           });
           
-          // Add the alerts from this rule
-          for (const alert of rule.alerts) {
-            flightEntry.alerts.push({
-              ...alert,
-              ruleId: rule.id,
-              isActive: rule.isActive
-            });
-          }
+          // Add this alert
+          flightEntry.alerts.push({
+            ...alert,
+            ruleId: rule.id,
+            isActive: rule.isActive
+          });
         }
       }
     }
     
-    // STEP 2: Fallback - If no flights found, query RuleCondition directly
+    // STEP 2: Fallback - Get all tracked flights for the user if no rule-based flights
     if (flightsMap.size === 0) {
-      console.log("No flights found in rules, trying direct condition lookup...");
+      console.log("No flights found in rules, fetching all tracked flights...");
       
-      const flightConditions = await db.ruleCondition.findMany({
+      const trackedFlights = await db.trackedFlight.findMany({
         where: {
-          rule: {
-            userId: userId,
-            isActive: true
-          },
-          flightId: {
-            not: null
-          }
+          userId: userId,
         },
         include: {
-          flight: true,
-          rule: {
-            include: {
-              alerts: true
-            }
-          }
+          alerts: true
         }
       });
       
-      console.log(`Found ${flightConditions.length} conditions with flights`);
+      console.log(`Found ${trackedFlights.length} tracked flights`);
       
-      // Process each condition
-      for (const condition of flightConditions) {
-        if (!condition.flight) continue;
-        
-        const flight = condition.flight;
-        const rule = condition.rule;
-        
-        if (!flightsMap.has(flight.id)) {
-          flightsMap.set(flight.id, {
-            ...flight,
-            alerts: [],
-            activeRules: []
-          });
-        }
-        
-        const flightEntry = flightsMap.get(flight.id);
-        
-        if (!flightEntry.activeRules.some((r: { id: string }) => r.id === rule.id)) {
-          flightEntry.activeRules.push({
-            id: rule.id,
-            name: rule.name,
-            isActive: rule.isActive
-          });
-          
-          for (const alert of rule.alerts) {
-            flightEntry.alerts.push({
-              ...alert,
-              ruleId: rule.id,
-              isActive: rule.isActive
-            });
-          }
-        }
+      // Convert tracked flights to the expected format
+      for (const flight of trackedFlights) {
+        flightsMap.set(flight.id, {
+          id: flight.id,
+          flightNumber: flight.flightNumber,
+          departureAirport: flight.departureAirport,
+          arrivalAirport: flight.arrivalAirport,
+          departureTime: flight.departureTime,
+          arrivalTime: flight.arrivalTime,
+          status: flight.status,
+          price: flight.price,
+          alerts: flight.alerts,
+          activeRules: []
+        });
       }
     }
     

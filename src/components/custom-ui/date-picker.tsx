@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, isAfter, isBefore } from "date-fns";
-import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, isAfter, isBefore, getDay, addDays } from "date-fns";
+import { CalendarIcon, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DatePickerProps {
@@ -60,10 +60,37 @@ export function DatePicker({
   };
 
   // Generate days for the current month
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
   const daysInMonth = eachDayOfInterval({
-    start: startOfMonth(currentMonth),
-    end: endOfMonth(currentMonth)
+    start: monthStart,
+    end: monthEnd
   });
+
+  // Calculate the first day to show in the calendar (adjust to start from Sunday)
+  const startDate = startOfMonth(currentMonth);
+  const startDay = getDay(startDate); // 0 for Sunday, 1 for Monday, etc.
+  
+  // Create array with days from previous month to fill the first row
+  const daysToDisplay = [];
+  
+  // Add days from previous month if needed
+  if (startDay > 0) {
+    for (let i = startDay; i > 0; i--) {
+      daysToDisplay.push(addDays(startDate, -i));
+    }
+  }
+  
+  // Add days from current month
+  daysToDisplay.push(...daysInMonth);
+  
+  // Add days from next month to complete the grid if needed
+  const remainingDays = 42 - daysToDisplay.length; // 6 rows of 7 days
+  if (remainingDays > 0) {
+    for (let i = 1; i <= remainingDays; i++) {
+      daysToDisplay.push(addDays(monthEnd, i));
+    }
+  }
 
   // Check if a date is disabled
   const isDateDisabled = (date: Date) => {
@@ -91,7 +118,7 @@ export function DatePicker({
           <CalendarIcon className="mr-2 h-4 w-4" />
           {value ? format(value, "PPP") : placeholder}
         </span>
-        <ChevronLeft className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </button>
 
       {/* Date picker calendar */}
@@ -127,10 +154,11 @@ export function DatePicker({
 
           {/* Calendar days */}
           <div className="grid grid-cols-7 gap-1">
-            {daysInMonth.map((day) => {
+            {daysToDisplay.map((day) => {
               const isSelected = value ? isSameDay(day, value) : false;
               const isDisabled = isDateDisabled(day);
               const isTodayDate = isToday(day);
+              const isCurrentMonth = isSameMonth(day, currentMonth);
 
               return (
                 <button
@@ -148,6 +176,7 @@ export function DatePicker({
                     isSelected && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
                     !isSelected && isTodayDate && "bg-accent text-accent-foreground",
                     !isSelected && !isTodayDate && "hover:bg-accent hover:text-accent-foreground",
+                    !isCurrentMonth && "text-muted-foreground opacity-30",
                     isDisabled && "text-muted-foreground opacity-50 cursor-not-allowed hover:bg-transparent"
                   )}
                 >

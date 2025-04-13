@@ -10,7 +10,6 @@ import {
   DatePicker,
   type DropdownOption
 } from "@/components/custom-ui";
-import { Checkbox } from "@/components/ui/checkbox";
 
 // Types
 export type Airline = DropdownOption;
@@ -28,9 +27,6 @@ export function FlightSearchForm() {
   const [isLoadingAirlines, setIsLoadingAirlines] = useState(false);
   const [airlines, setAirlines] = useState<Airline[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Add state for including prices
-  const [includePrices, setIncludePrices] = useState(false);
 
   // Fetch airlines on component mount
   useEffect(() => {
@@ -100,7 +96,6 @@ export function FlightSearchForm() {
     if (departureDate) {
       params.append("flight_date", departureDate.toISOString().split("T")[0]);
     }
-    params.append("include_prices", includePrices.toString());
     
     // Navigate to search results page
     router.push(`/flights/results?${params.toString()}`);
@@ -158,21 +153,6 @@ export function FlightSearchForm() {
           {errors.departureDate && (
             <p className="text-xs text-red-500">{errors.departureDate}</p>
           )}
-        </div>
-        
-        {/* Add checkbox for prices */}
-        <div className="flex items-center space-x-2">
-          <Checkbox 
-            id="include_prices" 
-            checked={includePrices}
-            onCheckedChange={(checked) => setIncludePrices(checked as boolean)}
-          />
-          <label 
-            htmlFor="include_prices" 
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            Include price information (may slow down search)
-          </label>
         </div>
         
         <Button type="submit" className="w-full">

@@ -416,7 +416,6 @@ function transformFlightRadarResponseToFlight(apiResponse: any): Flight {
     flight_status: flightStatus,
     flight_date: flightDate,
     airline: {
-      name: apiResponse.airline?.name || "Unknown Airline",
       iata: apiResponse.airline?.code?.iata || '',
       icao: apiResponse.airline?.code?.icao || ''
     },

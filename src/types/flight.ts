@@ -1,7 +1,7 @@
-export type FlightStatus = 'scheduled' | 'active' | 'landed' | 'cancelled' | 'incident' | 'diverted' | 'unknown';
+export type FlightStatus = 'scheduled' | 'active' | 'landed' | 'cancelled' | 'incident' | 'diverted' | 'unknown' | 'en-route' | 'arrived';
 
 export interface Airline {
-  name: string;
+  name?: string;
   iata: string;
   icao: string;
 }
@@ -13,9 +13,9 @@ export interface FlightIdentifier {
 }
 
 export interface AirportInfo {
-  airport: string;
   iata: string;
   icao: string;
+  airport?: string;
   terminal?: string;
   gate?: string;
   baggage?: string;
@@ -25,6 +25,7 @@ export interface AirportInfo {
   actual?: string;
   estimated_runway?: string;
   actual_runway?: string;
+  timezone?: string;
 }
 
 export interface Aircraft {
@@ -32,11 +33,12 @@ export interface Aircraft {
   iata?: string;
   icao?: string;
   model?: string;
+  type?: string;
 }
 
 export interface Price {
-  amount: number;
   currency: string;
+  amount: number;
   formatted: string;
 }
 
@@ -60,4 +62,9 @@ export interface Flight {
     is_ground: boolean;
   };
   price?: Price;
+  codeshared?: {
+    airline_name: string;
+    airline_iata: string;
+    flight_number: string;
+  } | null;
 } 

@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface FlightDetailsPageProps {
   params: {
     flightNumber: string;
+    departureDate: string;
+    arrivalDate: string;
   };
 }
 
@@ -18,6 +20,10 @@ export default async function FlightDetailsPage({ params }: FlightDetailsPagePro
   // Await params before accessing properties
   const paramsObj = await Promise.resolve(params);
   const flightNumber = paramsObj.flightNumber;
+  const departureDate = paramsObj.departureDate;
+  const arrivalDate = paramsObj.arrivalDate;
+  
+  console.log(`Flight details page params: ${flightNumber}, ${departureDate}, ${arrivalDate}`);
   
   try {
     // For server components, use an absolute URL for fetch
@@ -25,7 +31,9 @@ export default async function FlightDetailsPage({ params }: FlightDetailsPagePro
       ? `https://${process.env.VERCEL_URL}` 
       : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     
-    const apiUrl = new URL(`/api/flights/${encodeURIComponent(flightNumber)}`, baseUrl).toString();
+    const apiUrl = new URL(`/api/flights/${encodeURIComponent(flightNumber)}/${encodeURIComponent(departureDate)}/${encodeURIComponent(arrivalDate)}`, baseUrl).toString();
+    
+    console.log(`Fetching flight details from API URL: ${apiUrl}`);
     
     const flightResponse = await fetch(apiUrl, {
       method: 'GET',
@@ -34,6 +42,8 @@ export default async function FlightDetailsPage({ params }: FlightDetailsPagePro
       },
       next: { revalidate: 60 }, // Revalidate data every 60 seconds
     });
+    
+    console.log(`API response status: ${flightResponse.status} ${flightResponse.statusText}`);
     
     if (!flightResponse.ok) {
       console.error(`Failed to fetch flight details: ${flightResponse.statusText}`);

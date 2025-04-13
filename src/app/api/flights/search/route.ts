@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { flightSearchSchema, searchFlights } from "@/lib/flight-radar-api";
+import { flightSearchSchema, searchFlights } from "@/lib/aero-api";
 import { fetchFlightPrices } from "@/lib/flight-price-api";
 
 export async function GET(request: Request) {
@@ -28,22 +28,10 @@ export async function GET(request: Request) {
       );
     }
     
-    // Search for flights
+    // Search for flights using AeroAPI
     console.log("Searching for flights with params:", result.data);
     let flights = await searchFlights(result.data);
     console.log(`Found ${flights.length} flights in initial search`);
-    
-    // If prices requested and we have flights, fetch price information
-    if (params.include_prices && flights.length > 0) {
-      console.log(`Fetching prices for ${flights.length} flights`);
-      try {
-        flights = await fetchFlightPrices(flights, params.flight_date);
-        console.log(`Added prices to ${flights.filter(f => !!f.price).length} flights`);
-      } catch (priceError) {
-        console.error("Error fetching flight prices:", priceError);
-        // Continue without prices if there was an error
-      }
-    }
     
     return NextResponse.json({ flights });
   } catch (error: any) {

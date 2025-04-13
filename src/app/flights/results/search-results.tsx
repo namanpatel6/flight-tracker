@@ -1,23 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Flight } from "@/types/flight";
 import { FlightCard } from "@/components/flight-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { getTrackedFlights, trackFlight, untrackFlight } from "@/lib/flight-api";
-import { Link } from "next/link";
-import { Button } from "@/components/ui/button";
-import { CardFooter } from "@/components/ui/card";
-import { Bell, BellOff } from "lucide-react";
+import Link from "next/link";
 
 interface SearchParamsType {
   flight_iata?: string;
   airline_iata?: string;
   flight_date?: string;
-  include_prices?: string;
 }
 
 interface SearchResultsProps {
@@ -25,10 +19,8 @@ interface SearchResultsProps {
 }
 
 export function SearchResults({ searchParams }: SearchResultsProps) {
-  const { data: session } = useSession();
   const router = useRouter();
   const [flights, setFlights] = useState<Flight[]>([]);
-  const [trackedFlightIds, setTrackedFlightIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resolvedParams, setResolvedParams] = useState<SearchParamsType | null>(null);
@@ -91,10 +83,6 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
           queryParams.append("flight_date", resolvedParams.flight_date);
         }
         
-        if (resolvedParams.include_prices) {
-          queryParams.append("include_prices", resolvedParams.include_prices);
-        }
-        
         console.log("Making API request with params:", Object.fromEntries(queryParams.entries()));
         
         // Make API request to our internal API route
@@ -116,80 +104,6 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
 
     fetchFlights();
   }, [resolvedParams]);
-
-  // Fetch tracked flights if user is logged in
-  useEffect(() => {
-    if (session?.user?.id) {
-      const fetchTrackedFlights = async () => {
-        try {
-          const trackedFlights = await getTrackedFlights(session.user.id);
-          const trackedIds = new Set<string>(trackedFlights.map((flight: Flight) => flight.id));
-          setTrackedFlightIds(trackedIds);
-        } catch (err) {
-          console.error("Error fetching tracked flights:", err);
-        }
-      };
-
-      fetchTrackedFlights();
-    }
-  }, [session]);
-
-  const handleTrackFlight = async (flightId: string) => {
-    if (!session?.user?.id) {
-      router.push("/api/auth/signin");
-      return;
-    }
-
-    // Find the flight with the given ID
-    const flight = flights.find(f => f.id === flightId);
-    if (!flight) {
-      setError("Flight not found");
-      return;
-    }
-
-    try {
-      // Send a POST request directly to the tracked-flights API with price information
-      const response = await fetch('/api/tracked-flights', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          flightId,
-          price: flight.price?.formatted 
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to track flight: ${response.statusText}`);
-      }
-      
-      // Update local state to reflect the change
-      setTrackedFlightIds(prev => new Set([...prev, flightId]));
-      
-    } catch (err) {
-      console.error("Error tracking flight:", err);
-      setError("Failed to track flight. Please try again.");
-    }
-  };
-
-  const handleUntrackFlight = async (flightId: string) => {
-    if (!session?.user?.id) return;
-    
-    try {
-      const success = await untrackFlight(session.user.id, flightId);
-      if (success) {
-        setTrackedFlightIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(flightId);
-          return newSet;
-        });
-      }
-    } catch (err) {
-      console.error("Error untracking flight:", err);
-      setError("Failed to untrack flight. Please try again.");
-    }
-  };
 
   if (!resolvedParams) {
     return (
@@ -235,9 +149,6 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
         <FlightCard
           key={flight.id}
           flight={flight}
-          isTracked={trackedFlightIds.has(flight.id)}
-          onTrack={() => handleTrackFlight(flight.id)}
-          onUntrack={() => handleUntrackFlight(flight.id)}
         />
       ))}
     </div>

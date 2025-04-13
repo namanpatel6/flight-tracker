@@ -461,7 +461,6 @@ function transformApiResponseToFlight(apiResponse: any): Flight {
     },
     flight_status: apiResponse.flight_status as FlightStatus,
     airline: {
-      name: apiResponse.airline.name || "Unknown Airline",
       iata: apiResponse.airline.iata || null,
       icao: apiResponse.airline.icao || null
     },

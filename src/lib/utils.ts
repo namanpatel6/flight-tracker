@@ -73,14 +73,22 @@ export function getStatusDescription(status: string): string {
   switch (status.toLowerCase()) {
     case "scheduled":
       return "This flight is scheduled to depart as planned."
-    case "on time":
-      return "This flight is on time and proceeding as scheduled."
+    case "active":
+    case "en-route":
+      return "This flight is currently in the air and en route to its destination."
+    case "arrived":
+    case "landed":
+      return "This flight has landed at its destination."
     case "delayed":
       return "This flight is experiencing a delay."
     case "cancelled":
       return "This flight has been cancelled."
-    case "landed":
-      return "This flight has landed at its destination."
+    case "incident":
+      return "This flight is experiencing an incident. Check with the airline for more information."
+    case "diverted":
+      return "This flight has been diverted from its original destination."
+    case "unknown":
+      return "The current status of this flight is unknown."
     default:
       return "Status information is not available."
   }

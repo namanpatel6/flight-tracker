@@ -19,22 +19,15 @@ export const metadata: Metadata = {
 };
 
 // Define types for our rule data
-interface RuleCondition {
-  id: string;
-  field: string;
-  operator: string;
-  value: string;
-  flight?: {
-    flightNumber: string;
-  } | null;
-}
-
 interface Alert {
   id: string;
   type: string;
   isActive: boolean;
   flight?: {
     flightNumber: string;
+    departureAirport?: string;
+    arrivalAirport?: string;
+    departureTime?: string;
   } | null;
 }
 
@@ -47,7 +40,6 @@ interface Rule {
   schedule: string | null;
   createdAt: Date;
   updatedAt: Date;
-  conditions: RuleCondition[];
   alerts: Alert[];
 }
 
@@ -59,11 +51,6 @@ async function getRule(id: string, userId: string) {
         userId,
       },
       include: {
-        conditions: {
-          include: {
-            flight: true,
-          },
-        },
         alerts: {
           include: {
             flight: true,
@@ -111,12 +98,12 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
     );
   }
 
-  // Find the flight information from the first condition
-  const flight = rule.conditions.length > 0 && rule.conditions[0].flight 
-    ? rule.conditions[0].flight 
+  // Find the flight information from the first alert
+  const flight = rule.alerts.length > 0 && rule.alerts[0].flight 
+    ? rule.alerts[0].flight 
     : null;
 
-  // Format operator for display
+  // Format operator for display - keep for backward compatibility
   const formatOperator = (operator: string) => {
     return operator === 'AND' ? 'All conditions must match' : 'Any condition can match';
   };
@@ -194,13 +181,15 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
               <div className="flex items-center gap-2 mb-2">
                 <span className="font-medium text-lg">{flight.flightNumber}</span>
               </div>
-              <div className="flex items-center text-md">
-                <span className="font-medium">{flight.departureAirport}</span>
-                <svg className="w-12 h-6 mx-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span className="font-medium">{flight.arrivalAirport}</span>
-              </div>
+              {flight.departureAirport && flight.arrivalAirport && (
+                <div className="flex items-center text-md">
+                  <span className="font-medium">{flight.departureAirport}</span>
+                  <svg className="w-12 h-6 mx-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="font-medium">{flight.arrivalAirport}</span>
+                </div>
+              )}
               {flight.departureTime && (
                 <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
@@ -259,29 +248,6 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
         
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Conditions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {rule.conditions.length === 0 ? (
-              <p className="text-muted-foreground">No conditions defined for this rule.</p>
-            ) : (
-              <div className="space-y-3">
-                {rule.conditions.map((condition) => (
-                  <div key={condition.id} className="border rounded-md p-3">
-                    <div className="flex flex-wrap items-center gap-1 text-sm">
-                      <span className="font-medium">{getFieldDisplayName(condition.field)}</span>
-                      <span>{getOperatorDisplayName(condition.operator)}</span>
-                      <span className="font-medium">"{condition.value}"</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card className="md:col-span-2">
-          <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <Bell className="h-5 w-5" />
               Alerts
@@ -289,24 +255,22 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
           </CardHeader>
           <CardContent>
             {rule.alerts.length === 0 ? (
-              <p className="text-muted-foreground">No alerts defined for this rule.</p>
+              <p className="text-muted-foreground">No alerts configured for this rule.</p>
             ) : (
               <div className="space-y-3">
                 {rule.alerts.map((alert) => (
-                  <div key={alert.id} className="border rounded-md p-3 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">
-                        {alert.type.replace(/_/g, ' ')}
+                  <div key={alert.id} className="border rounded-md p-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium">{alert.type}</span>
+                      <Badge variant={alert.isActive ? "default" : "outline"}>
+                        {alert.isActive ? "Active" : "Inactive"}
                       </Badge>
-                      {alert.flight && (
-                        <Badge variant="outline">
-                          {alert.flight.flightNumber}
-                        </Badge>
-                      )}
                     </div>
-                    <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full ${alert.isActive && rule.isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                    </div>
+                    {alert.flight && (
+                      <div className="text-sm text-muted-foreground">
+                        Flight: {alert.flight.flightNumber}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
