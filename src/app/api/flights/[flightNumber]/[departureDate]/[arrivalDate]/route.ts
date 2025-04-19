@@ -3,15 +3,10 @@ import { getFlightDetails } from "@/lib/aero-api";
 import { searchFlightPrice } from "@/lib/flight-price-api";
 import { Price } from "@/types/flight";
 
-interface RouteParams {
-  params: {
-    flightNumber: string;
-    departureDate: string;
-    arrivalDate: string;
-  };
-}
-
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(
+  request: Request, 
+  { params }: { params: { flightNumber: string; departureDate: string; arrivalDate: string } }
+) {
   try {
     // Properly await params before accessing properties
     const paramsObj = await Promise.resolve(params);

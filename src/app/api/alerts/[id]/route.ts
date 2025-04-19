@@ -3,12 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }

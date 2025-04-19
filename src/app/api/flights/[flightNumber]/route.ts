@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 
-interface RouteParams {
-  params: {
-    flightNumber: string;
-  };
-}
-
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(
+  request: Request, 
+  { params }: { params: { flightNumber: string } }
+) {
   // Get the flight number from the request
   const flightNumber = params.flightNumber;
   
