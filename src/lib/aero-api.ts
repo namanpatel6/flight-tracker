@@ -297,42 +297,42 @@ function transformAeroApiResponseToFlight(scheduleData: any): Flight {
  * Determine the optimal polling interval for a flight
  * based on its current status
  * @param flightData The flight data
- * @returns Polling interval in seconds
+ * @returns An object with polling interval in seconds and whether to stop tracking
  */
-export function getOptimalPollingInterval(flightData: Flight): number {
-  const status = flightData.flight_status;
+export function getOptimalPollingInterval(flightData: Flight): { interval: number, stopTracking: boolean } {
+  const status = flightData.flight_status.toLocaleLowerCase();
   
-  switch (status) {
-    case 'scheduled':
-      // If flight is far in the future, check less frequently
-      const scheduledTime = new Date(flightData.departure?.scheduled || 0).getTime();
-      const timeUntilDeparture = scheduledTime - Date.now();
-      
-      if (timeUntilDeparture > 24 * 60 * 60 * 1000) { // > 24 hours
-        return 6 * 60 * 60; // 6 hours
-      } else if (timeUntilDeparture > 6 * 60 * 60 * 1000) { // > 6 hours
-        return 2 * 60 * 60; // 2 hours
-      } else if (timeUntilDeparture > 2 * 60 * 60 * 1000) { // > 2 hours
-        return 30 * 60; // 30 minutes
-      } else {
-        return 15 * 60; // 15 minutes
-      }
-    
-    case 'active':
-    case 'en-route':
-      return 5 * 60; // 5 minutes
-      
-    case 'landed':
-      return 10 * 60; // 10 minutes
-      
-    case 'arrived':
-    case 'diverted':
-    case 'cancelled':
-      return 60 * 60; // 1 hour
-      
-    default:
-      return 30 * 60; // 30 minutes default
+  // Immediately stop tracking for completed flights
+  if (status.includes('landed') || status.includes('arrived')) {
+    return { interval: 0, stopTracking: true };
   }
+  
+  if (status.includes('cancelled') || status.includes('diverted')) {
+    // Keep minimal tracking for cancelled/diverted flights
+    return { interval: 60 * 60, stopTracking: false }; // Check once per hour
+  }
+  
+  // Simplified tiered approach based on time until departure
+  if (status.includes('scheduled')) {
+    const scheduledTime = new Date(flightData.departure?.scheduled || 0).getTime();
+    const timeUntilDeparture = scheduledTime - Date.now();
+    
+    if (timeUntilDeparture > 24 * 60 * 60 * 1000) { // > 24 hours
+      return { interval: 6 * 60 * 60, stopTracking: false }; // 6 hours
+    } else if (timeUntilDeparture > 12 * 60 * 60 * 1000) { // > 12 hours
+      return { interval: 60 * 60, stopTracking: false }; // 1 hour
+    } else {
+      return { interval: 15 * 60, stopTracking: false }; // 15 minutes
+    }
+  }
+  
+  // For active flights, check more frequently
+    if (status.includes('on time') || status.includes('en route')) {
+    return { interval: 15 * 60, stopTracking: false }; // 15 minutes
+  }
+  
+  // Default case for any other status
+  return { interval: 30 * 60, stopTracking: false }; // 30 minutes
 }
 
 /**

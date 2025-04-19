@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { searchFlights } from "@/lib/flight-api";
 // Import placeholder for future notification API
-import { sendNotification } from "@/lib/notifications";
+import { sendNotificationEmail } from "@/lib/notifications";
 import { Flight } from "@/types/flight";
 import { evaluateRule } from "@/lib/rules";
 
@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
 // Process tracked flights with direct alerts (not rule-based)
 async function processTrackedFlightsWithAlerts() {
   // Get all tracked flights with active alerts that are not associated with rules
+  // Skip flights that are already marked as 'arrived' or 'landed'
   const trackedFlights = await prisma.trackedFlight.findMany({
     where: {
       alerts: {
@@ -65,6 +66,11 @@ async function processTrackedFlightsWithAlerts() {
           ruleId: null, // Only get alerts not associated with rules
         },
       },
+      NOT: {
+        status: {
+          in: ['arrived', 'landed'] // Skip already completed flights
+        }
+      }
     },
     include: {
       alerts: {
@@ -79,26 +85,101 @@ async function processTrackedFlightsWithAlerts() {
   
   console.log(`Processing ${trackedFlights.length} tracked flights with direct alerts`);
   
-  // Process each flight
-  for (const trackedFlight of trackedFlights) {
-    try {
-      // Search for the latest flight information
-      const flightResults = await searchFlights({
-        flight_iata: trackedFlight.flightNumber
-      });
+  // Group flights by time windows for batch processing
+  const now = new Date();
+  const within12Hours: string[] = [];
+  const within24Hours: string[] = [];
+  const beyond24Hours: string[] = [];
+  
+  // Sort flights into appropriate buckets
+  for (const flight of trackedFlights) {
+    // Skip already processed flights
+    if (flight.status === 'arrived' || flight.status === 'landed') continue;
+    
+    if (!flight.departureTime) {
+      // If no departure time, default to 12-hour bucket
+      within12Hours.push(flight.flightNumber);
+      continue;
+    }
+    
+    const timeUntilDeparture = flight.departureTime.getTime() - now.getTime();
+    
+    if (timeUntilDeparture <= 12 * 60 * 60 * 1000) {
+      within12Hours.push(flight.flightNumber);
+    } else if (timeUntilDeparture <= 24 * 60 * 60 * 1000) {
+      within24Hours.push(flight.flightNumber);
+    } else {
+      beyond24Hours.push(flight.flightNumber);
+    }
+  }
+  
+  console.log(`Flights grouped by time: <12h: ${within12Hours.length}, 12-24h: ${within24Hours.length}, >24h: ${beyond24Hours.length}`);
+  
+  // Create a map to easily look up flight by number
+  const flightMap = new Map(
+    trackedFlights.map(flight => [flight.flightNumber, flight])
+  );
+  
+  // Process each time bucket with appropriate frequency
+  const processBatch = async (flightNumbers: string[], label: string) => {
+    if (flightNumbers.length === 0) return;
+    
+    console.log(`Processing ${label} batch: ${flightNumbers.length} flights`);
+    
+    // Fetch flight data in batch
+    const flightDataMap = await searchFlights({
+      flight_iata: flightNumbers.join(',')
+    });
+    
+    if (!flightDataMap || flightDataMap.length === 0) {
+      console.log(`No flight information found for ${label} batch`);
+      return;
+    }
+    
+    // Process each flight in the batch
+    for (const latestFlightInfo of flightDataMap) {
+      const flightNumber = latestFlightInfo.flight?.iata || '';
+      const trackedFlight = flightMap.get(flightNumber);
       
-      if (!flightResults || flightResults.length === 0) {
-        console.log(`No flight information found for ${trackedFlight.flightNumber}`);
-        continue;
-      }
-      
-      const latestFlightInfo = flightResults[0];
+      if (!trackedFlight) continue;
       
       // Check for changes that would trigger alerts
       const changes = detectChanges(trackedFlight, latestFlightInfo);
       
+      // Check if flight has arrived/landed - if so, make final update and stop tracking
+      if (latestFlightInfo.flight_status === 'landed' || latestFlightInfo.flight_status === 'arrived') {
+        console.log(`Flight ${flightNumber} has ${latestFlightInfo.flight_status} - final update`);
+        
+        // Update one last time
+        await prisma.trackedFlight.update({
+          where: {
+            id: trackedFlight.id,
+          },
+          data: {
+            status: latestFlightInfo.flight_status,
+            departureTime: latestFlightInfo.departure.scheduled ? new Date(latestFlightInfo.departure.scheduled) : trackedFlight.departureTime,
+            arrivalTime: latestFlightInfo.arrival.scheduled ? new Date(latestFlightInfo.arrival.scheduled) : trackedFlight.arrivalTime,
+            ...(latestFlightInfo.departure.gate && { gate: latestFlightInfo.departure.gate }),
+            ...(latestFlightInfo.departure.terminal && { terminal: latestFlightInfo.departure.terminal }),
+          },
+        });
+        
+        // Create notification about flight completing
+        await prisma.notification.create({
+          data: {
+            title: `Flight Completed`,
+            message: `Flight ${flightNumber} has ${latestFlightInfo.flight_status} at its destination.`,
+            type: "INFO",
+            userId: trackedFlight.userId,
+            flightId: trackedFlight.id,
+          },
+        });
+        
+        continue;
+      }
+      
       if (changes.length > 0) {
-        console.log(`Changes detected for flight ${trackedFlight.flightNumber}:`, changes);
+        console.log(`Changes detected for flight ${flightNumber}:`, changes);
         
         // Update the flight information in the database
         await prisma.trackedFlight.update({
@@ -109,7 +190,6 @@ async function processTrackedFlightsWithAlerts() {
             status: latestFlightInfo.flight_status || trackedFlight.status,
             departureTime: latestFlightInfo.departure.scheduled ? new Date(latestFlightInfo.departure.scheduled) : trackedFlight.departureTime,
             arrivalTime: latestFlightInfo.arrival.scheduled ? new Date(latestFlightInfo.arrival.scheduled) : trackedFlight.arrivalTime,
-            // Only update these fields if they exist in the latestFlightInfo
             ...(latestFlightInfo.departure.gate && { gate: latestFlightInfo.departure.gate }),
             ...(latestFlightInfo.departure.terminal && { terminal: latestFlightInfo.departure.terminal }),
           },
@@ -118,12 +198,15 @@ async function processTrackedFlightsWithAlerts() {
         // Process alerts for this flight
         await processAlerts(trackedFlight, latestFlightInfo, changes);
       } else {
-        console.log(`No changes detected for flight ${trackedFlight.flightNumber}`);
+        console.log(`No changes detected for flight ${flightNumber}`);
       }
-    } catch (error) {
-      console.error(`Error processing flight ${trackedFlight.flightNumber}:`, error);
     }
-  }
+  };
+  
+  // Process batches with different frequencies
+  await processBatch(within12Hours, 'within 12 hours');
+  await processBatch(within24Hours, 'within 24 hours');
+  await processBatch(beyond24Hours, 'beyond 24 hours');
 }
 
 // Process rules

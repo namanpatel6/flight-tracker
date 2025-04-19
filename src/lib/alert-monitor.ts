@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { fetchFlightInfo, batchFetchFlights, getOptimalPollingInterval } from "./aero-api";
+import { batchFetchFlights, getOptimalPollingInterval } from "./aero-api";
 import { Flight } from "@/types/flight";
 import { Alert, TrackedFlight, User } from "@prisma/client";
 
@@ -10,12 +10,13 @@ const nextPollTimes: Record<string, number> = {};
 /**
  * Processes tracked flights with direct alerts (not rule-based)
  * Uses cost-effective polling strategy
+ * @param timeRange Optional filter for which time bucket to process: 'near-term' (0-12h), 'mid-term' (12-24h), or 'long-term' (>24h)
  */
-export async function processTrackedFlightsWithAlerts(): Promise<void> {
+export async function processTrackedFlightsWithAlerts(timeRange?: 'near-term' | 'mid-term' | 'long-term'): Promise<void> {
   const now = Date.now();
   
-  // Get all tracked flights with active alerts that are not associated with rules
-  const trackedFlights = await db.trackedFlight.findMany({
+  // Base query for tracked flights with active alerts not associated with rules
+  const baseQuery: any = {
     where: {
       alerts: {
         some: {
@@ -23,6 +24,12 @@ export async function processTrackedFlightsWithAlerts(): Promise<void> {
           ruleId: null, // Only get alerts not associated with rules
         },
       },
+      // Skip flights that are already landed or arrived
+      NOT: {
+        status: {
+          in: ['landed', 'arrived']
+        }
+      }
     },
     include: {
       alerts: {
@@ -33,10 +40,51 @@ export async function processTrackedFlightsWithAlerts(): Promise<void> {
       },
       user: true,
     },
-  });
+  };
+  
+  // Add time range filter if specified
+  if (timeRange) {
+    const nowDate = new Date();
+    
+    // Filter based on time range
+    if (timeRange === 'near-term') {
+      // Flights within 12 hours of departure
+      const twelveHoursFromNow = new Date(nowDate.getTime() + 12 * 60 * 60 * 1000);
+      baseQuery.where = {
+        ...baseQuery.where,
+        departureTime: {
+          gte: nowDate,
+          lte: twelveHoursFromNow,
+        }
+      };
+    } else if (timeRange === 'mid-term') {
+      // Flights 12-24 hours away
+      const twelveHoursFromNow = new Date(nowDate.getTime() + 12 * 60 * 60 * 1000);
+      const twentyFourHoursFromNow = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000);
+      baseQuery.where = {
+        ...baseQuery.where,
+        departureTime: {
+          gt: twelveHoursFromNow,
+          lte: twentyFourHoursFromNow,
+        }
+      };
+    } else if (timeRange === 'long-term') {
+      // Flights more than 24 hours away
+      const twentyFourHoursFromNow = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000);
+      baseQuery.where = {
+        ...baseQuery.where,
+        departureTime: {
+          gt: twentyFourHoursFromNow,
+        }
+      };
+    }
+  }
+  
+  // Get tracked flights
+  const trackedFlights = await db.trackedFlight.findMany(baseQuery);
   
   // Filter flights based on optimal polling schedules
-  const flightsToProcess = trackedFlights.filter((flight: TrackedFlight) => {
+  const flightsToProcess = trackedFlights.filter((flight: any) => {
     // Skip if we polled too recently
     if (lastPollTimes[flight.id]) {
       const nextPollTime = nextPollTimes[flight.id] || 0;
@@ -77,8 +125,35 @@ export async function processTrackedFlightsWithAlerts(): Promise<void> {
       lastPollTimes[trackedFlight.id] = now;
       
       // Determine next poll time based on flight status
-      const nextPollIntervalMs = getOptimalPollingInterval(latestFlightInfo) * 1000;
-      nextPollTimes[trackedFlight.id] = now + nextPollIntervalMs;
+      const pollingInfo = getOptimalPollingInterval(latestFlightInfo);
+      
+      // Check if we should stop tracking this flight
+      if (pollingInfo.stopTracking) {
+        console.log(`Flight ${trackedFlight.flightNumber} has ${latestFlightInfo.flight_status} status - stopping tracking`);
+        
+        // Final update to the flight data before we stop tracking
+        await updateFlightData(trackedFlight.id, latestFlightInfo);
+        
+        // Create a notification to inform the user that tracking has stopped
+        await db.notification.create({
+          data: {
+            title: `Flight Tracking Ended`,
+            message: `Tracking for ${trackedFlight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`,
+            type: "INFO",
+            userId: trackedFlight.userId,
+            flightId: trackedFlight.id
+          }
+        });
+        
+        // Clean up tracking maps
+        delete lastPollTimes[trackedFlight.id];
+        delete nextPollTimes[trackedFlight.id];
+        
+        continue;
+      }
+      
+      // Set next poll time using the interval from pollingInfo
+      nextPollTimes[trackedFlight.id] = now + (pollingInfo.interval * 1000);
       
       // Check for changes that would trigger alerts
       const changes = detectChanges(trackedFlight, latestFlightInfo);
@@ -92,8 +167,8 @@ export async function processTrackedFlightsWithAlerts(): Promise<void> {
         // Process alerts for this flight
         await processAlerts(trackedFlight, latestFlightInfo, changes);
         
-        // Changes detected - poll more frequently next time
-        nextPollTimes[trackedFlight.id] = now + Math.min(nextPollIntervalMs, 15 * 60 * 1000); // Maximum 15 minutes
+        // Changes detected - poll more frequently next time (but respect minimum interval)
+        nextPollTimes[trackedFlight.id] = now + Math.min(pollingInfo.interval * 1000, 15 * 60 * 1000); // Maximum 15 minutes
       } else {
         console.log(`No changes detected for flight ${trackedFlight.flightNumber}`);
       }

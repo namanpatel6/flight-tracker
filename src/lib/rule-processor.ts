@@ -159,12 +159,34 @@ export async function processRules(): Promise<void> {
         };
         
         // Determine optimal polling interval for this flight
-        const nextPollIntervalMs = getOptimalPollingInterval(latestFlightInfo) * 1000;
+        const pollingInfo = getOptimalPollingInterval(latestFlightInfo);
         
-        // If changes were detected, poll more frequently
+        // Check if we should stop tracking this flight
+        if (pollingInfo.stopTracking) {
+          console.log(`Flight ${flight.flightNumber} has ${latestFlightInfo.flight_status} status - stopping tracking in rules`);
+          
+          // Create a notification to inform the user that tracking has stopped
+          await db.notification.create({
+            data: {
+              title: `Flight Tracking Ended`,
+              message: `Tracking for ${flight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`,
+              type: "INFO",
+              userId: flight.userId,
+              flightId: flight.id
+            }
+          });
+          
+          // Clean up tracking maps
+          delete flightLastPollTimes[flight.id];
+          delete flightNextPollTimes[flight.id];
+          
+          continue;
+        }
+        
+        // If changes were detected, poll more frequently (but respect minimum interval)
         const adjustedInterval = changes.length > 0 
-          ? Math.min(nextPollIntervalMs, 15 * 60 * 1000) // Max 15 minutes if changes detected 
-          : nextPollIntervalMs;
+          ? Math.min(pollingInfo.interval * 1000, 15 * 60 * 1000) // Max 15 minutes if changes detected 
+          : pollingInfo.interval * 1000;
         
         flightNextPollTimes[flight.id] = now + adjustedInterval;
         
