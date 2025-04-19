@@ -150,32 +150,25 @@ type SelectedFlight = z.infer<typeof selectedFlightSchema>;
 type Condition = z.infer<typeof conditionSchema>;
 type Alert = z.infer<typeof alertSchema>;
 
-// Define proper interfaces for Airport and Airline types in this file
+// Define an interface without Airline if needed
 export interface Airport extends DropdownOption {
-  name?: string;
-}
-
-export interface Airline extends DropdownOption {
   name?: string;
 }
 
 export function CreateRuleButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [searchResults, setSearchResults] = useState<Flight[]>([]);
-  const [selectedFlights, setSelectedFlights] = useState<SelectedFlight[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [airports, setAirports] = useState<Airport[]>([]);
-  const [airlines, setAirlines] = useState<Airline[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [recommendedAlertTypes, setRecommendedAlertTypes] = useState<string[]>([]);
   const [selectedAlertTypes, setSelectedAlertTypes] = useState<string[]>([]);
-  const [isLoadingAirlines, setIsLoadingAirlines] = useState(false);
-  const [selectedAirline, setSelectedAirline] = useState<Airline | null>(null);
   const [flightNumberInput, setFlightNumberInput] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [searchResults, setSearchResults] = useState<Flight[]>([]);
+  const [selectedFlights, setSelectedFlights] = useState<SelectedFlight[]>([]);
   
   // Forms for each step
   const basicInfoForm = useForm<z.infer<typeof basicInfoSchema>>({
@@ -194,17 +187,16 @@ export function CreateRuleButton() {
     },
   });
 
-  // Fetch airports and airlines when the dialog opens
+  // Fetch airports when the dialog opens
   useEffect(() => {
     if (open) {
-      fetchAirportsAndAirlines();
+      fetchAirports();
     } else {
       resetForm();
     }
   }, [open]);
 
-  const fetchAirportsAndAirlines = async () => {
-    setIsLoadingAirlines(true);
+  const fetchAirports = async () => {
     try {
       // Fetch airports
       const airportsResponse = await fetch('/api/airports');
@@ -212,35 +204,17 @@ export function CreateRuleButton() {
         const airportsData = await airportsResponse.json();
         setAirports(airportsData);
       }
-
-      // Fetch airlines
-      const airlinesResponse = await fetch('/api/airlines');
-      if (airlinesResponse.ok) {
-        const airlinesData = await airlinesResponse.json();
-        setAirlines(airlinesData);
-      }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load airports or airlines');
-      
-      // Fallback data for airlines
-      setAirlines([
-        { value: "ba", label: "British Airways", code: "BA" },
-        { value: "aa", label: "American Airlines", code: "AA" },
-        { value: "dl", label: "Delta Air Lines", code: "DL" },
-        { value: "af", label: "Air France", code: "AF" },
-        { value: "jl", label: "Japan Airlines", code: "JL" }
-      ]);
-    } finally {
-      setIsLoadingAirlines(false);
+      console.error('Error fetching airports:', error);
+      toast.error('Failed to load airports');
     }
   };
 
   const validateFlightSearch = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!flightNumberInput.trim() && !selectedAirline) {
-      newErrors.search = "Please provide at least one search parameter (flight number or airline)";
+    if (!flightNumberInput.trim()) {
+      newErrors.search = "Please provide a flight number to search";
     }
     
     setErrors(newErrors);
@@ -261,11 +235,6 @@ export function CreateRuleButton() {
       // Add flight number parameter if available
       if (flightNumberInput.trim()) {
         params.append('flight_iata', flightNumberInput.trim());
-      }
-      
-      // Add airline code if available
-      if (selectedAirline?.code) {
-        params.append('airline_iata', selectedAirline.code);
       }
       
       // Add departure date
@@ -535,20 +504,16 @@ export function CreateRuleButton() {
   };
 
   const resetForm = () => {
-    // Reset all the state
+    basicInfoForm.reset();
+    flightSearchForm.reset();
     setCurrentStep(0);
-    setSearchResults([]);
     setSelectedFlights([]);
     setAlerts([]);
     setSelectedAlertTypes([]);
     setRecommendedAlertTypes([]);
-    setSelectedAirline(null);
     setFlightNumberInput("");
     setErrors({});
-    
-    // Reset forms
-    basicInfoForm.reset();
-    flightSearchForm.reset();
+    setSearchResults([]);
   };
 
   // Clean up when changing steps
@@ -639,22 +604,7 @@ export function CreateRuleButton() {
                   e.preventDefault();
                   handleFlightSearch();
                 }} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Airline</label>
-                      <Dropdown
-                        options={airlines}
-                        value={selectedAirline}
-                        onChange={setSelectedAirline}
-                        placeholder="Select airline"
-                        isLoading={isLoadingAirlines}
-                        searchPlaceholder="Search airlines..."
-                        noResultsText="No airlines found"
-                        loadingText="Loading airlines..."
-                        className={errors.search ? "border-red-500" : ""}
-                      />
-                    </div>
-                    
+                  <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Flight Number</label>
                       <Input 

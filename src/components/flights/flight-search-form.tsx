@@ -5,14 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Dropdown, 
-  DatePicker,
-  type DropdownOption
-} from "@/components/custom-ui";
-
-// Types
-export type Airline = DropdownOption;
+import { DatePicker } from "@/components/custom-ui";
 
 // Flight Search Form Component
 export function FlightSearchForm() {
@@ -20,47 +13,10 @@ export function FlightSearchForm() {
   
   // State for form values
   const [flightNumber, setFlightNumber] = useState("");
-  const [airline, setAirline] = useState<Airline | null>(null);
   const [departureDate, setDepartureDate] = useState<Date | undefined>(undefined);
   
-  // State for loading and data
-  const [isLoadingAirlines, setIsLoadingAirlines] = useState(false);
-  const [airlines, setAirlines] = useState<Airline[]>([]);
+  // State for errors
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Fetch airlines on component mount
-  useEffect(() => {
-    fetchAirlines();
-  }, []);
-
-  // Fetch airlines from API
-  const fetchAirlines = async () => {
-    setIsLoadingAirlines(true);
-    try {
-      const response = await fetch("/api/airlines");
-      if (!response.ok) {
-        throw new Error("Failed to fetch airlines");
-      }
-      const data = await response.json();
-      
-      // The API already returns data in the correct format
-      setAirlines(data);
-      
-      console.log("Airlines data:", data); // For debugging
-    } catch (error) {
-      console.error("Error fetching airlines:", error);
-      // Fallback data for development
-      setAirlines([
-        { value: "ba", label: "British Airways", code: "BA" },
-        { value: "aa", label: "American Airlines", code: "AA" },
-        { value: "dl", label: "Delta Air Lines", code: "DL" },
-        { value: "af", label: "Air France", code: "AF" },
-        { value: "jl", label: "Japan Airlines", code: "JL" }
-      ]);
-    } finally {
-      setIsLoadingAirlines(false);
-    }
-  };
 
   // Validate form before submission
   const validateForm = () => {
@@ -68,9 +24,6 @@ export function FlightSearchForm() {
     
     if (!flightNumber.trim()) {
       newErrors.flightNumber = "Flight number is required";
-    }
-    if (!airline) {
-      newErrors.airline = "Airline is required";
     }
     if (!departureDate) {
       newErrors.departureDate = "Date is required";
@@ -92,7 +45,6 @@ export function FlightSearchForm() {
     const params = new URLSearchParams();
     
     params.append("flight_iata", flightNumber);
-    params.append("airline_iata", airline?.code || "");
     if (departureDate) {
       params.append("flight_date", departureDate.toISOString().split("T")[0]);
     }
@@ -108,37 +60,17 @@ export function FlightSearchForm() {
       </h2>
       
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Airline</label>
-            <Dropdown
-              options={airlines}
-              value={airline}
-              onChange={setAirline}
-              placeholder="Select airline"
-              isLoading={isLoadingAirlines}
-              searchPlaceholder="Search airlines..."
-              noResultsText="No airlines found"
-              loadingText="Loading airlines..."
-              className={errors.airline ? "border-red-500" : ""}
-            />
-            {errors.airline && (
-              <p className="text-xs text-red-500">{errors.airline}</p>
-            )}
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Flight Number</label>
-            <Input
-              value={flightNumber}
-              onChange={(e) => setFlightNumber(e.target.value)}
-              placeholder="e.g. BA123"
-              className={errors.flightNumber ? "border-red-500" : ""}
-            />
-            {errors.flightNumber && (
-              <p className="text-xs text-red-500">{errors.flightNumber}</p>
-            )}
-          </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Flight Number</label>
+          <Input
+            value={flightNumber}
+            onChange={(e) => setFlightNumber(e.target.value)}
+            placeholder="e.g. BA123"
+            className={errors.flightNumber ? "border-red-500" : ""}
+          />
+          {errors.flightNumber && (
+            <p className="text-xs text-red-500">{errors.flightNumber}</p>
+          )}
         </div>
         
         <div className="space-y-2">
