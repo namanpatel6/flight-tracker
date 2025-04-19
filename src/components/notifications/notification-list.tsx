@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
@@ -11,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 interface Notification {
   id: string;
@@ -81,17 +83,10 @@ export function NotificationList() {
         )
       );
       
-      toast({
-        title: 'Notifications marked as read',
-        description: `${ids.length} notification${ids.length === 1 ? '' : 's'} marked as read.`,
-      });
+      toast.success(`${ids.length} notification${ids.length === 1 ? '' : 's'} marked as read.`);
     } catch (err) {
       console.error('Error marking notifications as read:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to mark notifications as read. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Failed to mark notifications as read. Please try again.');
     }
   };
 
@@ -115,17 +110,10 @@ export function NotificationList() {
         prev.filter(notification => !ids.includes(notification.id))
       );
       
-      toast({
-        title: 'Notifications deleted',
-        description: `${ids.length} notification${ids.length === 1 ? '' : 's'} deleted.`,
-      });
+      toast.success(`${ids.length} notification${ids.length === 1 ? '' : 's'} deleted.`);
     } catch (err) {
       console.error('Error deleting notifications:', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete notifications. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Failed to delete notifications. Please try again.');
     }
   };
 

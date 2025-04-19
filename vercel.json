@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/process-rules",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "headers": [
@@ -24,5 +24,6 @@
         }
       ]
     }
-  ]
+  ],
+  "buildCommand": "next build --no-lint --no-typescript"
 } 

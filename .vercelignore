@@ -1,0 +1,10 @@
+.git
+node_modules
+.env
+.env.local
+.idea
+README.md
+FIXES.md
+RULES_AND_ALERTS.md
+temp/
+*.txt 

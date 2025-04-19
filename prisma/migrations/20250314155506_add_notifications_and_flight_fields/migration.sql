@@ -7,9 +7,7 @@
 */
 -- AlterTable
 ALTER TABLE "TrackedFlight" DROP COLUMN "airline",
-DROP COLUMN "date",
-ADD COLUMN "gate" TEXT,
-ADD COLUMN "terminal" TEXT;
+DROP COLUMN "date";
 
 -- CreateTable
 CREATE TABLE "Notification" (

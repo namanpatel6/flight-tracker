@@ -147,24 +147,6 @@ The Flight Tracker application includes an email notification system that sends 
 - **Development Mode**: Uses Ethereal Email for testing without sending real emails.
 - **Production Ready**: Can be configured to use any SMTP service for production.
 
-### Testing Email Functionality
-
-To test the email functionality:
-
-```bash
-npm run test:email
-```
-
-This will send test emails for each alert type using Ethereal Email. You can view the emails in the Ethereal web interface using the preview URLs printed in the console.
-
-### Manually Triggering the Cron Job
-
-To manually trigger the cron job that checks for flight updates and sends notifications:
-
-```bash
-npm run trigger:cron
-```
-
 For more details about the email notification system, including configuration, implementation details, and troubleshooting, see [EMAIL_NOTIFICATIONS.md](./EMAIL_NOTIFICATIONS.md).
 
 ## Development
@@ -181,26 +163,6 @@ For more details about the email notification system, including configuration, i
 ## License
 
 [MIT License](LICENSE)
-
-## Email Notifications
-
-The Flight Tracker application includes an email notification service that sends alerts to users when there are changes to their tracked flights. For detailed setup instructions, see [EMAIL_SETUP.md](./EMAIL_SETUP.md).
-
-### Key Features
-
-- **Automated Notifications**: Receive email alerts for flight status changes, delays, gate changes, departures, and arrivals.
-- **Customizable Templates**: Email templates can be customized to match your branding.
-- **Development Mode**: Uses Ethereal Email for testing without sending real emails.
-- **Production Ready**: Can be configured to use any SMTP service for production.
-
-### Getting Started with Email Notifications
-
-1. Set up the required environment variables in `.env.local`
-2. Check your configuration with `npm run check:env`
-3. Test the email functionality with `npm run test:email`
-4. Set up the cron job for automatic updates
-
-For more details, see the [Email Setup Guide](./EMAIL_SETUP.md).
 
 ## Flight Rules System
 
