@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { z } from "zod";
 
 // GET /api/rules/[id]
@@ -21,26 +21,23 @@ export async function GET(
 
     const id = params.id;
 
-    // Fetch the rule with its conditions and alerts
-    const rule = await prisma.$queryRaw`
+    // Use a raw query to get the rule with its related data
+    const rule = await db.$queryRaw`
       SELECT r.*, 
-             json_agg(DISTINCT jsonb_build_object(
-               'id', rc.id,
-               'field', rc.field,
-               'operator', rc.operator,
-               'value', rc.value,
-               'flight', CASE WHEN f.id IS NOT NULL THEN jsonb_build_object('id', f.id, 'flightNumber', f."flightNumber") ELSE NULL END
-             )) AS conditions,
+             '[]'::json AS conditions,
              json_agg(DISTINCT jsonb_build_object(
                'id', a.id,
                'type', a.type,
-               'flight', CASE WHEN af.id IS NOT NULL THEN jsonb_build_object('id', af.id, 'flightNumber', af."flightNumber") ELSE NULL END
+               'isActive', a."isActive",
+               'flightId', a."flightId",
+               'trackedFlightId', a."trackedFlightId",
+               'flight', CASE WHEN af.id IS NOT NULL THEN jsonb_build_object('id', af.id, 'flightNumber', af."flightNumber") ELSE NULL END,
+               'trackedFlight', CASE WHEN tf.id IS NOT NULL THEN jsonb_build_object('id', tf.id, 'flightNumber', tf."flightNumber") ELSE NULL END
              )) AS alerts
       FROM "Rule" r
-      LEFT JOIN "RuleCondition" rc ON r.id = rc."ruleId"
-      LEFT JOIN "TrackedFlight" f ON rc."flightId" = f.id
       LEFT JOIN "Alert" a ON r.id = a."ruleId"
-      LEFT JOIN "TrackedFlight" af ON a."flightId" = af.id
+      LEFT JOIN "Flight" af ON a."flightId" = af.id
+      LEFT JOIN "TrackedFlight" tf ON a."trackedFlightId" = tf.id
       WHERE r.id = ${id} AND r."userId" = ${session.user.id}
       GROUP BY r.id
     `;
@@ -80,13 +77,12 @@ export async function PATCH(
     const id = params.id;
     
     // Validate the rule exists and belongs to the user
-    const existingRule = await prisma.rule.findUnique({
+    const existingRule = await db.rule.findUnique({
       where: { 
         id,
         userId: session.user.id
       },
       include: {
-        conditions: true,
         alerts: true
       }
     });
@@ -100,7 +96,6 @@ export async function PATCH(
 
     console.log("EXISTING RULE DATA:", {
       id: existingRule.id,
-      conditions: existingRule.conditions,
       alerts: existingRule.alerts
     });
 
@@ -111,21 +106,13 @@ export async function PATCH(
       operator: z.enum(["AND", "OR"]).optional(),
       isActive: z.boolean().optional(),
       schedule: z.string().nullable().optional(),
-      conditions: z.array(
-        z.object({
-          id: z.string().optional(),
-          field: z.enum(["status", "departureTime", "arrivalTime", "gate", "terminal", "flightNumber", "price"]),
-          operator: z.string().min(1),
-          value: z.string().min(1),
-          flightId: z.string().nullable().optional(),
-        })
-      ).optional(),
       alerts: z.array(
         z.object({
           id: z.string().optional(),
           type: z.string().min(1),
           isActive: z.boolean().default(true),
           flightId: z.string().nullable().optional(),
+          trackedFlightId: z.string().nullable().optional(),
         })
       ).optional(),
     });
@@ -143,7 +130,7 @@ export async function PATCH(
     }
 
     // Update the rule using a transaction to ensure all related records are updated
-    const updatedRule = await prisma.$transaction(async (tx) => {
+    const updatedRule = await db.$transaction(async (tx) => {
       // 1. Update the basic rule information
       const updateData = validatedData.data;
       const basicUpdateData: Record<string, any> = {};
@@ -165,90 +152,15 @@ export async function PATCH(
         });
       }
       
-      // 2. Handle conditions if provided
-      if (updateData.conditions) {
-        console.log("PROCESSING CONDITIONS:", updateData.conditions);
-        
-        // Get existing conditions
-        const existingConditions = await tx.ruleCondition.findMany({
-          where: { ruleId: id },
-        });
-        console.log("EXISTING CONDITIONS:", existingConditions);
-        
-        // Identify conditions to create, update, or delete
-        const existingConditionIds = existingConditions.map(c => c.id);
-        const updatedConditionIds = updateData.conditions
-          .filter(c => c.id)
-          .map(c => c.id as string);
-        
-        console.log({
-          existingConditionIds,
-          updatedConditionIds,
-        });
-        
-        // Delete conditions that are no longer in the updated list
-        const conditionsToDelete = existingConditionIds.filter(
-          id => !updatedConditionIds.includes(id)
-        );
-        console.log("CONDITIONS TO DELETE:", conditionsToDelete);
-        
-        if (conditionsToDelete.length > 0) {
-          await tx.ruleCondition.deleteMany({
-            where: {
-              id: { in: conditionsToDelete },
-            },
-          });
-        }
-        
-        // Update or create conditions
-        for (const condition of updateData.conditions) {
-          if (condition.id && existingConditionIds.includes(condition.id)) {
-            // Update existing condition
-            const conditionUpdateData: any = {
-              field: condition.field,
-              operator: condition.operator,
-              value: condition.value,
-            };
-            
-            if (condition.flightId !== undefined) {
-              conditionUpdateData.flightId = condition.flightId;
-            }
-            
-            console.log(`UPDATING CONDITION ${condition.id}:`, conditionUpdateData);
-            await tx.ruleCondition.update({
-              where: { id: condition.id },
-              data: conditionUpdateData,
-            });
-          } else {
-            // Create new condition
-            const conditionCreateData: any = {
-              field: condition.field,
-              operator: condition.operator,
-              value: condition.value,
-              ruleId: id,
-            };
-            
-            if (condition.flightId !== undefined) {
-              conditionCreateData.flightId = condition.flightId;
-            }
-            
-            console.log("CREATING NEW CONDITION:", conditionCreateData);
-            await tx.ruleCondition.create({
-              data: conditionCreateData,
-            });
-          }
-        }
-      } else {
-        console.log("NO CONDITIONS PROVIDED in update request");
-      }
-      
       // 3. Handle alerts if provided
       if (updateData.alerts) {
         console.log("PROCESSING ALERTS:", updateData.alerts);
+        
         // Get existing alerts
         const existingAlerts = await tx.alert.findMany({
           where: { ruleId: id },
         });
+        console.log("EXISTING ALERTS:", existingAlerts);
         
         // Identify alerts to create, update, or delete
         const existingAlertIds = existingAlerts.map(a => a.id);
@@ -256,10 +168,16 @@ export async function PATCH(
           .filter(a => a.id)
           .map(a => a.id as string);
         
+        console.log({
+          existingAlertIds,
+          updatedAlertIds,
+        });
+        
         // Delete alerts that are no longer in the updated list
         const alertsToDelete = existingAlertIds.filter(
           id => !updatedAlertIds.includes(id)
         );
+        console.log("ALERTS TO DELETE:", alertsToDelete);
         
         if (alertsToDelete.length > 0) {
           await tx.alert.deleteMany({
@@ -282,6 +200,10 @@ export async function PATCH(
               alertUpdateData.flightId = alert.flightId;
             }
             
+            if (alert.trackedFlightId !== undefined) {
+              alertUpdateData.trackedFlightId = alert.trackedFlightId;
+            }
+            
             console.log(`UPDATING ALERT ${alert.id}:`, alertUpdateData);
             await tx.alert.update({
               where: { id: alert.id },
@@ -291,23 +213,17 @@ export async function PATCH(
             // Create new alert
             const alertCreateData: any = {
               type: alert.type,
-              isActive: alert.isActive ?? true,
+              isActive: alert.isActive,
               ruleId: id,
               userId: session.user.id,
             };
             
-            if (alert.flightId !== undefined && alert.flightId !== null) {
-              // Verify the flight exists before trying to create the alert
-              const flightExists = await tx.trackedFlight.findUnique({
-                where: { id: alert.flightId },
-                select: { id: true }
-              });
-              
-              if (flightExists) {
-                alertCreateData.flightId = alert.flightId;
-              } else {
-                console.log(`Warning: Flight with ID ${alert.flightId} not found, skipping flightId assignment`);
-              }
+            if (alert.flightId !== undefined) {
+              alertCreateData.flightId = alert.flightId;
+            }
+            
+            if (alert.trackedFlightId !== undefined) {
+              alertCreateData.trackedFlightId = alert.trackedFlightId;
             }
             
             console.log("CREATING NEW ALERT:", alertCreateData);
@@ -318,44 +234,37 @@ export async function PATCH(
         }
       }
       
-      // Fetch the updated rule with its conditions and alerts
-      return tx.$queryRaw`
-        SELECT r.*, 
-               json_agg(DISTINCT jsonb_build_object(
-                 'id', rc.id,
-                 'field', rc.field,
-                 'operator', rc.operator,
-                 'value', rc.value,
-                 'flight', CASE WHEN f.id IS NOT NULL THEN jsonb_build_object('id', f.id, 'flightNumber', f."flightNumber") ELSE NULL END
-               )) AS conditions,
-               json_agg(DISTINCT jsonb_build_object(
-                 'id', a.id,
-                 'type', a.type,
-                 'isActive', a."isActive",
-                 'flight', CASE WHEN af.id IS NOT NULL THEN jsonb_build_object('id', af.id, 'flightNumber', af."flightNumber") ELSE NULL END
-               )) AS alerts
-        FROM "Rule" r
-        LEFT JOIN "RuleCondition" rc ON r.id = rc."ruleId"
-        LEFT JOIN "TrackedFlight" f ON rc."flightId" = f.id
-        LEFT JOIN "Alert" a ON r.id = a."ruleId"
-        LEFT JOIN "TrackedFlight" af ON a."flightId" = af.id
-        WHERE r.id = ${id} AND r."userId" = ${session.user.id}
-        GROUP BY r.id
-      `;
+      // Return the updated rule with all its data
+      return tx.rule.findUnique({
+        where: { id },
+        include: {
+          alerts: {
+            include: {
+              flight: {
+                select: {
+                  flightNumber: true,
+                  departureAirport: true,
+                  arrivalAirport: true,
+                }
+              },
+              trackedFlight: {
+                select: {
+                  flightNumber: true,
+                  departureAirport: true,
+                  arrivalAirport: true,
+                }
+              }
+            }
+          },
+        },
+      });
     });
 
-    if (!updatedRule || !Array.isArray(updatedRule) || updatedRule.length === 0) {
-      return NextResponse.json(
-        { message: "Error retrieving updated rule" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(updatedRule[0]);
+    return NextResponse.json(updatedRule);
   } catch (error) {
     console.error("Error updating rule:", error);
     return NextResponse.json(
-      { message: "Error updating rule" },
+      { message: "Failed to update rule" },
       { status: 500 }
     );
   }
@@ -378,30 +287,39 @@ export async function DELETE(
 
     const id = params.id;
 
-    // Validate the rule exists and belongs to the user
-    const existingRule = await prisma.$queryRaw`
-      SELECT id FROM "Rule" WHERE id = ${id} AND "userId" = ${session.user.id}
-    `;
+    // Check if the rule exists and belongs to the user
+    const rule = await db.rule.findFirst({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+    });
 
-    if (!existingRule || !Array.isArray(existingRule) || existingRule.length === 0) {
+    if (!rule) {
       return NextResponse.json(
         { message: "Rule not found" },
         { status: 404 }
       );
     }
 
-    // Delete the rule and all associated conditions and alerts
-    await prisma.$transaction([
-      prisma.$executeRawUnsafe(`DELETE FROM "Alert" WHERE "ruleId" = '${id}'`),
-      prisma.$executeRawUnsafe(`DELETE FROM "RuleCondition" WHERE "ruleId" = '${id}'`),
-      prisma.$executeRawUnsafe(`DELETE FROM "Rule" WHERE id = '${id}' AND "userId" = '${session.user.id}'`)
+    // Delete the rule and all related records
+    await db.$transaction([
+      db.alert.deleteMany({
+        where: { ruleId: id },
+      }),
+      db.rule.delete({
+        where: { id },
+      }),
     ]);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(
+      { message: "Rule deleted successfully" },
+      { status: 200 }
+    );
   } catch (error) {
     console.error("Error deleting rule:", error);
     return NextResponse.json(
-      { message: "Error deleting rule" },
+      { message: "Failed to delete rule" },
       { status: 500 }
     );
   }

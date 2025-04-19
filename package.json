@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:email": "npx ts-node -r tsconfig-paths/register src/scripts/test-email.ts",
-    "test:flight-setup": "npx ts-node -r tsconfig-paths/register src/scripts/test-real-flight.ts",
-    "test:flight-change": "npx ts-node -r tsconfig-paths/register src/scripts/simulate-flight-change.ts"
+    "test:rules": "curl http://localhost:3000/api/test/trigger-cron?type=rules",
+    "test:flights": "curl http://localhost:3000/api/test/trigger-cron?type=flights",
+    "test:cron": "curl http://localhost:3000/api/test/trigger-cron?type=all"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.8.0",

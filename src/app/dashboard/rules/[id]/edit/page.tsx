@@ -11,21 +11,10 @@ export const metadata: Metadata = {
 };
 
 // Define types for our rule data
-interface RuleCondition {
-  id: string;
-  field: string;
-  operator: string;
-  value: string;
-  flightId?: string | null;
-  flight?: {
-    id: string;
-    flightNumber: string;
-  } | null;
-}
-
 interface Alert {
   id: string;
   type: string;
+  isActive: boolean; 
   flightId?: string | null;
   flight?: {
     id: string;
@@ -42,7 +31,7 @@ interface Rule {
   schedule: string | null;
   createdAt: Date;
   updatedAt: Date;
-  conditions: RuleCondition[];
+  conditions: []; // Empty array since conditions are no longer used
   alerts: Alert[];
 }
 
@@ -50,23 +39,15 @@ async function getRuleDetails(id: string, userId: string): Promise<Rule | null> 
   try {
     const rule = await prisma.$queryRaw`
       SELECT r.*, 
-             json_agg(DISTINCT jsonb_build_object(
-               'id', rc.id,
-               'field', rc.field,
-               'operator', rc.operator,
-               'value', rc.value,
-               'flightId', rc."flightId",
-               'flight', CASE WHEN f.id IS NOT NULL THEN jsonb_build_object('id', f.id, 'flightNumber', f."flightNumber") ELSE NULL END
-             )) AS conditions,
+             '[]'::json AS conditions,
              json_agg(DISTINCT jsonb_build_object(
                'id', a.id,
                'type', a.type,
+               'isActive', a."isActive",
                'flightId', a."flightId",
                'flight', CASE WHEN af.id IS NOT NULL THEN jsonb_build_object('id', af.id, 'flightNumber', af."flightNumber") ELSE NULL END
              )) AS alerts
       FROM "Rule" r
-      LEFT JOIN "RuleCondition" rc ON r.id = rc."ruleId"
-      LEFT JOIN "TrackedFlight" f ON rc."flightId" = f.id
       LEFT JOIN "Alert" a ON r.id = a."ruleId"
       LEFT JOIN "TrackedFlight" af ON a."flightId" = af.id
       WHERE r.id = ${id} AND r."userId" = ${userId}

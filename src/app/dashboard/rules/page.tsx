@@ -22,10 +22,9 @@ async function getRules(userId: string) {
         r."isActive", 
         r."createdAt", 
         r."updatedAt",
-        COUNT(DISTINCT rc.id) as "conditionCount",
+        0 as "conditionCount",
         COUNT(DISTINCT a.id) as "alertCount"
       FROM "Rule" r
-      LEFT JOIN "RuleCondition" rc ON r.id = rc."ruleId"
       LEFT JOIN "Alert" a ON r.id = a."ruleId"
       WHERE r."userId" = ${userId}
       GROUP BY r.id

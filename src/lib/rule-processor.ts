@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { batchFetchFlights, getOptimalPollingInterval } from "./aero-api";
 import { evaluateCondition, ConditionField, ConditionOperator, RuleCondition as TypedRuleCondition } from "./rules";
 import { Flight } from "@/types/flight";
-import { Rule, Alert, RuleCondition } from "@prisma/client";
+import { Rule, Alert } from "@prisma/client";
 import { sendNotificationEmail, createFlightAlertEmail } from './notifications';
 
 // Track last poll times for rules to implement adaptive polling
@@ -20,13 +20,12 @@ const flightNextPollTimes: Record<string, number> = {};
 export async function processRules(): Promise<void> {
   const now = Date.now();
   
-  // Get all active rules with their conditions and alerts
+  // Get all active rules with their alerts (conditions have been removed)
   const activeRules = await db.rule.findMany({
     where: {
       isActive: true,
     },
     include: {
-      conditions: true,
       alerts: {
         include: {
           trackedFlight: true,
@@ -63,16 +62,16 @@ export async function processRules(): Promise<void> {
       // Set default next poll time (will be adjusted based on flights later)
       ruleNextPollTimes[rule.id] = now + (30 * 60 * 1000); // 30 minutes default
       
-      // Get unique tracked flight IDs referenced in the rule conditions
+      // Get unique tracked flight IDs from alerts instead of conditions
       const trackedFlightIds = [...new Set(
-        rule.conditions
-          .filter(c => c.trackedFlightId)
-          .map(c => c.trackedFlightId as string)
+        rule.alerts
+          .filter(a => a.trackedFlightId)
+          .map(a => a.trackedFlightId as string)
       )];
       
       // Skip if no flights to process
       if (trackedFlightIds.length === 0) {
-        console.log(`Rule ${rule.name} has no flight conditions, skipping`);
+        console.log(`Rule ${rule.name} has no flight alerts, skipping`);
         continue;
       }
       
@@ -184,11 +183,14 @@ export async function processRules(): Promise<void> {
       // Schedule next rule check based on the earliest flight poll time
       ruleNextPollTimes[rule.id] = earliestNextPoll;
       
-      // Evaluate the rule
-      const ruleResult = evaluateRuleWithData(rule, ruleFlightData);
+      // Since we don't have conditions anymore, we'll consider the rule satisfied
+      // if there are any changes to any of the flights associated with the rule's alerts
+      const anyChanges = Object.values(ruleFlightData).some(
+        flightData => flightData.changes && flightData.changes.length > 0
+      );
       
-      if (ruleResult.satisfied) {
-        console.log(`Rule ${rule.name} satisfied, processing alerts`);
+      if (anyChanges) {
+        console.log(`Changes detected for rule ${rule.name}, processing alerts`);
         
         // Process alerts for this rule
         for (const alert of rule.alerts) {
@@ -246,122 +248,55 @@ export async function processRules(): Promise<void> {
               });
               
               // Send the email
-              const emailResult = await sendNotificationEmail({
+              await sendNotificationEmail({
                 to: alert.user.email,
                 subject: emailData.subject,
                 html: emailData.html,
                 text: emailData.text,
               });
               
-              if (emailResult.success) {
-                console.log(`Email notification sent to ${alert.user.email} for rule ${rule.name}`);
-              } else {
-                console.error(`Failed to send email notification: ${emailResult.message}`);
-              }
+              console.log(`Email notification sent to ${alert.user.email}`);
             }
           } catch (error) {
-            console.error('Error processing rule notification:', error);
+            console.error(`Error creating notification for rule ${rule.name}:`, error);
           }
         }
-      } else {
-        console.log(`Rule ${rule.name} not satisfied`);
       }
     } catch (error) {
-      console.error(`Error processing rule ${rule.id}:`, error);
-      
-      // On error, retry in 1 hour
-      ruleNextPollTimes[rule.id] = now + (60 * 60 * 1000);
+      console.error(`Error processing rule ${rule.name}:`, error);
     }
   }
-  
-  // Cleanup old entries in the tracking maps
-  cleanupTrackingMaps();
 }
 
 /**
- * Evaluates a rule with flight data
- */
-function evaluateRuleWithData(
-  rule: Rule & { conditions: RuleCondition[] }, 
-  flightData: Record<string, any>
-): { satisfied: boolean; matchedConditions: string[] } {
-  if (!rule.conditions || rule.conditions.length === 0) {
-    return { satisfied: false, matchedConditions: [] };
-  }
-  
-  const matchedConditions: string[] = [];
-  
-  // Evaluate each condition
-  const conditionResults = rule.conditions.map(condition => {
-    const flightId = condition.trackedFlightId || condition.flightId;
-    if (!flightId || !flightData[flightId]) {
-      return false;
-    }
-    
-    const flight = flightData[flightId];
-    
-    // Convert from Prisma model to TypeScript interface type
-    const typedCondition: TypedRuleCondition = {
-      id: condition.id,
-      field: condition.field as ConditionField,
-      operator: condition.operator as ConditionOperator,
-      value: condition.value,
-      ruleId: condition.ruleId,
-      // Convert null to undefined for optional fields
-      flightId: condition.flightId || undefined,
-      trackedFlightId: condition.trackedFlightId || undefined
-    };
-    
-    const result = evaluateCondition(typedCondition, flight);
-    
-    if (result) {
-      matchedConditions.push(condition.id);
-    }
-    
-    return result;
-  });
-  
-  // Combine results based on the rule operator
-  let satisfied = false;
-  if (rule.operator === "AND") {
-    satisfied = conditionResults.every(result => result);
-  } else {
-    satisfied = conditionResults.some(result => result);
-  }
-  
-  return { satisfied, matchedConditions };
-}
-
-/**
- * Generates a notification message for a rule-based alert
+ * Generates notification message for rule alert
  */
 function generateRuleNotificationMessage(rule: Rule, alert: Alert, flight: any): string {
-  const flightNumber = flight.flightNumber;
-  const changes = flight.changes || [];
+  let message = "";
   
-  // Find changes matching the alert type
-  const relevantChanges = changes.filter((change: { type: string }) => change.type === alert.type);
-  
-  if (relevantChanges.length > 0) {
-    const change = relevantChanges[0];
-    
-    switch (alert.type) {
-      case "STATUS_CHANGE":
-        return `Rule "${rule.name}": Flight ${flightNumber} status changed from ${change.oldValue || 'unknown'} to ${change.newValue}`;
-      case "DELAY":
-        return `Rule "${rule.name}": Flight ${flightNumber} has been delayed by ${change.delayMinutes} minutes`;
-      case "GATE_CHANGE":
-        return `Rule "${rule.name}": Flight ${flightNumber} gate changed from ${change.oldValue || 'unknown'} to ${change.newValue}`;
-      case "DEPARTURE":
-        return `Rule "${rule.name}": Flight ${flightNumber} has departed at ${new Date(change.departureTime).toLocaleTimeString()}`;
-      case "ARRIVAL":
-        return `Rule "${rule.name}": Flight ${flightNumber} has arrived at ${new Date(change.arrivalTime).toLocaleTimeString()}`;
-      default:
-        return `Rule "${rule.name}": Alert triggered for flight ${flightNumber}`;
-    }
+  switch (alert.type) {
+    case "STATUS_CHANGE":
+      message = `Flight ${flight.flightNumber} status has changed to ${flight.status}.`;
+      break;
+    case "DELAY":
+      const delayChange = flight.changes.find((c: any) => c.type === "DELAY");
+      if (delayChange) {
+        message = `Flight ${flight.flightNumber} has been delayed by ${delayChange.delayMinutes} minutes.`;
+      } else {
+        message = `Flight ${flight.flightNumber} has experienced a delay.`;
+      }
+      break;
+    case "GATE_CHANGE":
+      message = `Flight ${flight.flightNumber} gate has changed to ${flight.gate}.`;
+      break;
+    case "TERMINAL_CHANGE":
+      message = `Flight ${flight.flightNumber} terminal has changed to ${flight.terminal}.`;
+      break;
+    default:
+      message = `Alert for flight ${flight.flightNumber}: ${alert.type}`;
   }
   
-  return `Rule "${rule.name}" triggered for flight ${flightNumber}`;
+  return message;
 }
 
 /**
@@ -369,98 +304,96 @@ function generateRuleNotificationMessage(rule: Rule, alert: Alert, flight: any):
  */
 async function updateFlightData(flightId: string, flightInfo: Flight): Promise<void> {
   await db.trackedFlight.update({
-    where: {
-      id: flightId,
-    },
+    where: { id: flightId },
     data: {
-      status: flightInfo.flight_status || undefined,
+      status: flightInfo.flight_status,
       departureTime: flightInfo.departure.scheduled ? new Date(flightInfo.departure.scheduled) : undefined,
       arrivalTime: flightInfo.arrival.scheduled ? new Date(flightInfo.arrival.scheduled) : undefined,
-      ...(flightInfo.departure.gate && { gate: flightInfo.departure.gate }),
-      ...(flightInfo.departure.terminal && { terminal: flightInfo.departure.terminal }),
+      gate: flightInfo.departure.gate || undefined,
+      terminal: flightInfo.departure.terminal || undefined,
     },
   });
 }
 
 /**
- * Detects changes in flight information
+ * Detects changes between the tracked flight and latest flight info
  */
 function detectChanges(trackedFlight: any, latestFlightInfo: Flight): any[] {
   const changes = [];
   
   // Check for status change
-  if (latestFlightInfo.flight_status && latestFlightInfo.flight_status !== trackedFlight.status) {
+  if (trackedFlight.status !== latestFlightInfo.flight_status) {
     changes.push({
       type: "STATUS_CHANGE",
-      oldValue: trackedFlight.status,
-      newValue: latestFlightInfo.flight_status,
+      previous: trackedFlight.status,
+      current: latestFlightInfo.flight_status,
     });
-  }
-  
-  // Check for departure time change (delay)
-  if (latestFlightInfo.departure.scheduled && trackedFlight.departureTime) {
-    const oldDepartureTime = new Date(trackedFlight.departureTime);
-    const newDepartureTime = new Date(latestFlightInfo.departure.scheduled);
-    
-    // If departure time has changed by more than 10 minutes
-    const timeDifference = Math.abs(newDepartureTime.getTime() - oldDepartureTime.getTime());
-    if (timeDifference > 10 * 60 * 1000) { // 10 minutes in milliseconds
-      changes.push({
-        type: "DELAY",
-        oldValue: oldDepartureTime.toISOString(),
-        newValue: newDepartureTime.toISOString(),
-        delayMinutes: Math.floor(timeDifference / (60 * 1000)),
-      });
-    }
   }
   
   // Check for gate change
-  if (latestFlightInfo.departure.gate && latestFlightInfo.departure.gate !== trackedFlight.gate) {
+  if (
+    latestFlightInfo.departure.gate && 
+    trackedFlight.gate !== latestFlightInfo.departure.gate
+  ) {
     changes.push({
       type: "GATE_CHANGE",
-      oldValue: trackedFlight.gate,
-      newValue: latestFlightInfo.departure.gate,
+      previous: trackedFlight.gate,
+      current: latestFlightInfo.departure.gate,
     });
   }
   
-  // Check for departure update (when flight has departed)
-  if (latestFlightInfo.flight_status === "active" && trackedFlight.status !== "active") {
+  // Check for terminal change
+  if (
+    latestFlightInfo.departure.terminal && 
+    trackedFlight.terminal !== latestFlightInfo.departure.terminal
+  ) {
     changes.push({
-      type: "DEPARTURE",
-      departureTime: latestFlightInfo.departure.actual || latestFlightInfo.departure.scheduled,
+      type: "TERMINAL_CHANGE",
+      previous: trackedFlight.terminal,
+      current: latestFlightInfo.departure.terminal,
     });
   }
   
-  // Check for arrival update (when flight has arrived)
-  if (latestFlightInfo.flight_status === "landed" && trackedFlight.status !== "landed") {
-    changes.push({
-      type: "ARRIVAL",
-      arrivalTime: latestFlightInfo.arrival.actual || latestFlightInfo.arrival.scheduled,
-    });
+  // Check for departure time change
+  if (latestFlightInfo.departure.scheduled && trackedFlight.departureTime) {
+    const currentTime = new Date(trackedFlight.departureTime).getTime();
+    const newDepartureTime = new Date(latestFlightInfo.departure.scheduled).getTime();
+    
+    // Calculate difference in minutes
+    const diffMinutes = Math.round((newDepartureTime - currentTime) / (60 * 1000));
+    
+    // If difference is more than 10 minutes, consider it a delay
+    if (Math.abs(diffMinutes) > 10) {
+      changes.push({
+        type: "DELAY",
+        delayMinutes: diffMinutes,
+        previous: new Date(currentTime).toISOString(),
+        current: new Date(newDepartureTime).toISOString(),
+      });
+    }
   }
   
   return changes;
 }
 
 /**
- * Clean up old entries in the tracking maps 
- * to prevent memory leaks for flights/rules that are no longer active
+ * Cleans up tracking maps to prevent memory leaks
  */
 function cleanupTrackingMaps(): void {
   const now = Date.now();
-  const oldestTimeToKeep = now - (7 * 24 * 60 * 60 * 1000); // 7 days
+  const ONE_DAY = 24 * 60 * 60 * 1000;
   
-  // Clean rule tracking
+  // Clean up rule tracking maps
   for (const ruleId in ruleLastPollTimes) {
-    if (ruleLastPollTimes[ruleId] < oldestTimeToKeep) {
+    if (now - ruleLastPollTimes[ruleId] > ONE_DAY) {
       delete ruleLastPollTimes[ruleId];
       delete ruleNextPollTimes[ruleId];
     }
   }
   
-  // Clean flight tracking
+  // Clean up flight tracking maps
   for (const flightId in flightLastPollTimes) {
-    if (flightLastPollTimes[flightId] < oldestTimeToKeep) {
+    if (now - flightLastPollTimes[flightId] > ONE_DAY) {
       delete flightLastPollTimes[flightId];
       delete flightNextPollTimes[flightId];
     }

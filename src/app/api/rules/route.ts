@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { createRuleSchema } from "@/lib/rules";
 
 // GET /api/rules - Get all rules for the current user
@@ -16,13 +16,35 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const rules = await prisma.rule.findMany({
+    const rules = await db.rule.findMany({
       where: {
         userId: session.user.id,
       },
       include: {
-        conditions: true,
-        alerts: true,
+        alerts: {
+          include: {
+            flight: {
+              select: {
+                flightNumber: true,
+                departureAirport: true,
+                arrivalAirport: true,
+              }
+            },
+            trackedFlight: {
+              select: {
+                flightNumber: true,
+                departureAirport: true,
+                arrivalAirport: true,
+              }
+            }
+          }
+        },
+        user: {
+          select: {
+            name: true,
+            email: true,
+          }
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -31,9 +53,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(rules);
   } catch (error) {
-    console.error("Error fetching rules:", error);
+    console.error("Error getting rules:", error);
     return NextResponse.json(
-      { message: "Failed to fetch rules" },
+      { message: "Failed to retrieve rules" },
       { status: 500 }
     );
   }
@@ -51,68 +73,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const result = createRuleSchema.safeParse(body);
-
-    if (!result.success) {
+    const json = await req.json();
+    
+    // Validate against schema
+    try {
+      createRuleSchema.parse(json);
+    } catch (error) {
+      console.error("Validation error:", error);
       return NextResponse.json(
-        { message: "Invalid request", errors: result.error.flatten() },
+        { message: "Invalid rule data", details: error },
         { status: 400 }
       );
     }
 
-    const { name, description, operator, schedule, conditions, alerts } = result.data;
+    // Extract data
+    const { name, description, operator, isActive, schedule, alerts = [] } = json;
+    
+    // Note: conditions are no longer used since RuleCondition table was removed
 
-    // Create the rule with a transaction to ensure all related records are created
-    const rule = await prisma.$transaction(async (tx) => {
+    // Create the rule with a transaction
+    const rule = await db.$transaction(async (tx) => {
       // Create the rule
       const newRule = await tx.rule.create({
         data: {
           name,
           description,
-          operator: operator || "AND", // Set a default of AND if operator is not provided
+          operator,
+          isActive,
           schedule,
           userId: session.user.id,
         },
       });
-
-      // Process conditions if provided
-      if (conditions && conditions.length > 0) {
-        for (const condition of conditions) {
-          let flightId = condition.flightId;
-          let trackedFlightId = condition.trackedFlightId;
-          
-          // If flight data is provided but no flightId, create a new Flight record
-          if (condition.flightData && !flightId) {
-            const newFlight = await tx.flight.create({
-              data: {
-                flightNumber: condition.flightData.flightNumber,
-                airline: condition.flightData.airline,
-                departureAirport: condition.flightData.departureAirport,
-                arrivalAirport: condition.flightData.arrivalAirport,
-                departureTime: condition.flightData.departureTime ? new Date(condition.flightData.departureTime) : null,
-                arrivalTime: condition.flightData.arrivalTime ? new Date(condition.flightData.arrivalTime) : null,
-                status: condition.flightData.status,
-                gate: condition.flightData.gate,
-                terminal: condition.flightData.terminal,
-                // Removed price field
-              }
-            });
-            flightId = newFlight.id;
-          }
-          
-          await tx.ruleCondition.create({
-            data: {
-              field: condition.field,
-              operator: condition.operator,
-              value: condition.value,
-              ruleId: newRule.id,
-              flightId,
-              trackedFlightId,
-            },
-          });
-        }
-      }
 
       // Process alerts
       for (const alert of alerts) {
@@ -163,28 +154,10 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Return the rule with its conditions and alerts
+      // Return the rule with its alerts
       return tx.rule.findUnique({
         where: { id: newRule.id },
         include: {
-          conditions: {
-            include: {
-              flight: {
-                select: {
-                  flightNumber: true,
-                  departureAirport: true,
-                  arrivalAirport: true,
-                }
-              },
-              trackedFlight: {
-                select: {
-                  flightNumber: true,
-                  departureAirport: true,
-                  arrivalAirport: true,
-                }
-              }
-            }
-          },
           alerts: {
             include: {
               flight: {
