@@ -25,5 +25,5 @@
       ]
     }
   ],
-  "buildCommand": "next build --no-lint"
+  "buildCommand": "prisma generate && next build --no-lint"
 } 
