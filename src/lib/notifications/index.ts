@@ -5,35 +5,11 @@
 
 /**
  * Notification service to send email notifications
+ * Using Resend as the email delivery provider
  */
 
-import nodemailer from 'nodemailer';
-
-// Email configuration from environment variables
-const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
-const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || '587', 10);
-const EMAIL_SECURE = process.env.EMAIL_SECURE === 'true';
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASSWORD = process.env.EMAIL_PASSWORD;
-const EMAIL_FROM = process.env.EMAIL_FROM;
-
-// Create a reusable transporter object 
-const createTransporter = () => {
-  if (!EMAIL_USER || !EMAIL_PASSWORD) {
-    console.warn('Email credentials not configured. Email notifications will not be sent.');
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: EMAIL_PORT,
-    secure: EMAIL_SECURE,
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASSWORD,
-    },
-  });
-};
+import { sendEmail } from '@/lib/email';
+import { EmailData } from '@/lib/email/types';
 
 /**
  * Sends a notification email to a user
@@ -54,23 +30,20 @@ export async function sendNotificationEmail({
   text: string;
 }): Promise<{ success: boolean; message: string }> {
   try {
-    const transporter = createTransporter();
-    
-    if (!transporter) {
-      return { success: false, message: 'Email transporter not configured' };
-    }
-
-    if (!EMAIL_FROM) {
-      return { success: false, message: 'EMAIL_FROM not configured' };
-    }
-
-    await transporter.sendMail({
-      from: EMAIL_FROM,
+    // Create email data object
+    const emailData: EmailData = {
       to,
       subject,
-      text,
       html,
-    });
+      text,
+    };
+
+    // Send the email using the Resend service
+    const result = await sendEmail(emailData);
+
+    if (!result.success) {
+      return { success: false, message: result.error || 'Failed to send email' };
+    }
 
     return { success: true, message: 'Email sent successfully' };
   } catch (error) {

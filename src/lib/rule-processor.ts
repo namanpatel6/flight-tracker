@@ -165,16 +165,45 @@ export async function processRules(): Promise<void> {
         if (pollingInfo.stopTracking) {
           console.log(`Flight ${flight.flightNumber} has ${latestFlightInfo.flight_status} status - stopping tracking in rules`);
           
+          // Create notification message
+          const notificationMessage = `Tracking for ${flight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`;
+          
           // Create a notification to inform the user that tracking has stopped
           await db.notification.create({
             data: {
               title: `Flight Tracking Ended`,
-              message: `Tracking for ${flight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`,
+              message: notificationMessage,
               type: "INFO",
               userId: flight.userId,
               flightId: flight.id
             }
           });
+          
+          // Fetch user information to send email notification
+          const user = await db.user.findUnique({
+            where: { id: flight.userId }
+          });
+          
+          // Send email notification if user has email
+          if (user?.email) {
+            // Create email content
+            const emailData = createFlightAlertEmail({
+              userName: user.name || '',
+              flightNumber: flight.flightNumber,
+              alertType: 'INFO',
+              message: notificationMessage,
+            });
+            
+            // Send the email
+            await sendNotificationEmail({
+              to: user.email,
+              subject: emailData.subject,
+              html: emailData.html,
+              text: emailData.text,
+            });
+            
+            console.log(`Flight tracking ended email sent to ${user.email} for flight ${flight.flightNumber}`);
+          }
           
           // Clean up tracking maps
           delete flightLastPollTimes[flight.id];

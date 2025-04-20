@@ -67,9 +67,10 @@ async function processTrackedFlightsWithAlerts() {
         },
       },
       NOT: {
-        status: {
-          in: ['arrived', 'landed'] // Skip already completed flights
-        }
+        OR: [
+          { status: { contains: 'arrived', mode: 'insensitive' } },
+          { status: { contains: 'landed', mode: 'insensitive' } }
+        ] // Skip already completed flights
       }
     },
     include: {
@@ -94,7 +95,7 @@ async function processTrackedFlightsWithAlerts() {
   // Sort flights into appropriate buckets
   for (const flight of trackedFlights) {
     // Skip already processed flights
-    if (flight.status === 'arrived' || flight.status === 'landed') continue;
+    if (flight.status?.toLowerCase().includes('arrived') || flight.status?.toLowerCase().includes('landed')) continue;
     
     if (!flight.departureTime) {
       // If no departure time, default to 12-hour bucket
@@ -147,7 +148,8 @@ async function processTrackedFlightsWithAlerts() {
       const changes = detectChanges(trackedFlight, latestFlightInfo);
       
       // Check if flight has arrived/landed - if so, make final update and stop tracking
-      if (latestFlightInfo.flight_status === 'landed' || latestFlightInfo.flight_status === 'arrived') {
+      if (latestFlightInfo.flight_status?.toLowerCase().includes('landed') || 
+          latestFlightInfo.flight_status?.toLowerCase().includes('arrived')) {
         console.log(`Flight ${flightNumber} has ${latestFlightInfo.flight_status} - final update`);
         
         // Update one last time
@@ -164,16 +166,43 @@ async function processTrackedFlightsWithAlerts() {
           },
         });
         
+        // Create notification message
+        const notificationMessage = `Flight ${flightNumber} has ${latestFlightInfo.flight_status} at its destination.`;
+        
         // Create notification about flight completing
         await prisma.notification.create({
           data: {
             title: `Flight Completed`,
-            message: `Flight ${flightNumber} has ${latestFlightInfo.flight_status} at its destination.`,
+            message: notificationMessage,
             type: "INFO",
             userId: trackedFlight.userId,
             flightId: trackedFlight.id,
           },
         });
+        
+        // Send email notification if user has email
+        if (trackedFlight.user && trackedFlight.user.email) {
+          // Import the notification functions
+          const { sendNotificationEmail, createFlightAlertEmail } = await import('@/lib/notifications');
+          
+          // Create email content
+          const emailData = createFlightAlertEmail({
+            userName: trackedFlight.user.name || '',
+            flightNumber: trackedFlight.flightNumber,
+            alertType: 'ARRIVAL',
+            message: notificationMessage,
+          });
+          
+          // Send the email
+          await sendNotificationEmail({
+            to: trackedFlight.user.email,
+            subject: emailData.subject,
+            html: emailData.html,
+            text: emailData.text,
+          });
+          
+          console.log(`Flight completion email sent to ${trackedFlight.user.email} for flight ${trackedFlight.flightNumber}`);
+        }
         
         continue;
       }
@@ -323,8 +352,29 @@ async function processRules() {
               },
             });
             
-            // TODO: Replace with notification API integration
-            console.log(`Notification created for user ${alert.userId} for rule ${rule.name} alert type ${alert.type}, API integration needed`);
+            // Send email notification if user has email
+            if (alert.user.email) {
+              // Import the notification functions
+              const { sendNotificationEmail, createFlightAlertEmail } = await import('@/lib/notifications');
+              
+              // Create email content
+              const emailData = createFlightAlertEmail({
+                userName: alert.user.name || '',
+                flightNumber: flightWithChanges.flightNumber,
+                alertType: alert.type,
+                message: notificationMessage,
+              });
+              
+              // Send the email
+              await sendNotificationEmail({
+                to: alert.user.email,
+                subject: emailData.subject,
+                html: emailData.html,
+                text: emailData.text,
+              });
+              
+              console.log(`Email notification sent to ${alert.user.email} for rule ${rule.name}`);
+            }
           } catch (error) {
             console.error('Error processing rule notification:', error);
           }
@@ -416,7 +466,8 @@ function detectChanges(trackedFlight: any, latestFlightInfo: Flight) {
   }
   
   // Check for departure update (when flight has departed)
-  if (latestFlightInfo.flight_status === "active" && trackedFlight.status !== "active") {
+  if (latestFlightInfo.flight_status?.toLowerCase().includes("active") && 
+      !trackedFlight.status?.toLowerCase().includes("active")) {
     changes.push({
       type: "DEPARTURE",
       departureTime: latestFlightInfo.departure.actual || latestFlightInfo.departure.scheduled,
@@ -424,7 +475,8 @@ function detectChanges(trackedFlight: any, latestFlightInfo: Flight) {
   }
   
   // Check for arrival update (when flight has arrived)
-  if (latestFlightInfo.flight_status === "landed" && trackedFlight.status !== "landed") {
+  if (latestFlightInfo.flight_status?.toLowerCase().includes("landed") && 
+      !trackedFlight.status?.toLowerCase().includes("landed")) {
     changes.push({
       type: "ARRIVAL",
       arrivalTime: latestFlightInfo.arrival.actual || latestFlightInfo.arrival.scheduled,
@@ -469,9 +521,29 @@ async function processAlerts(trackedFlight: any, latestFlightInfo: Flight, chang
             },
           });
           
-          // TODO: Replace with notification API integration
-          console.log(`Notification created for user ${trackedFlight.userId} for alert type ${change.type}, API integration needed`);
-          
+          // Send email notification if user has email
+          if (trackedFlight.user && trackedFlight.user.email) {
+            // Import the notification functions
+            const { sendNotificationEmail, createFlightAlertEmail } = await import('@/lib/notifications');
+            
+            // Create email content
+            const emailData = createFlightAlertEmail({
+              userName: trackedFlight.user.name || '',
+              flightNumber: trackedFlight.flightNumber,
+              alertType: change.type,
+              message: notificationMessage,
+            });
+            
+            // Send the email
+            await sendNotificationEmail({
+              to: trackedFlight.user.email,
+              subject: emailData.subject,
+              html: emailData.html,
+              text: emailData.text,
+            });
+            
+            console.log(`Email notification sent to ${trackedFlight.user.email} for flight ${trackedFlight.flightNumber}`);
+          }
         } catch (error) {
           console.error('Error processing notification:', error);
         }

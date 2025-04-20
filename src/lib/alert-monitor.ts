@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { batchFetchFlights, getOptimalPollingInterval } from "./aero-api";
 import { Flight } from "@/types/flight";
 import { Alert, TrackedFlight, User } from "@prisma/client";
+import { sendNotificationEmail, createFlightAlertEmail } from './notifications';
 
 // Track last poll times to implement adaptive polling
 const lastPollTimes: Record<string, number> = {};
@@ -26,9 +27,10 @@ export async function processTrackedFlightsWithAlerts(timeRange?: 'near-term' | 
       },
       // Skip flights that are already landed or arrived
       NOT: {
-        status: {
-          in: ['landed', 'arrived']
-        }
+        OR: [
+          { status: { contains: 'landed', mode: 'insensitive' } },
+          { status: { contains: 'arrived', mode: 'insensitive' } }
+        ]
       }
     },
     include: {
@@ -234,8 +236,33 @@ async function processAlerts(
     // Create notification for each relevant change
     for (const change of relevantChanges) {
       try {
-        const notification = await createNotification(trackedFlight, alert, change);
+        // Generate notification message
+        const message = generateNotificationMessage(alert.type, change, trackedFlight);
+        
+        // Create notification in database
+        const notification = await createNotification(trackedFlight, alert, change, message);
         console.log(`Created notification ${notification.id} for alert ${alert.type}`);
+        
+        // Send email notification if user has email
+        if (trackedFlight.user.email) {
+          // Create email content
+          const emailData = createFlightAlertEmail({
+            userName: trackedFlight.user.name || '',
+            flightNumber: trackedFlight.flightNumber,
+            alertType: alert.type,
+            message: message,
+          });
+          
+          // Send the email
+          await sendNotificationEmail({
+            to: trackedFlight.user.email,
+            subject: emailData.subject,
+            html: emailData.html,
+            text: emailData.text,
+          });
+          
+          console.log(`Email notification sent to ${trackedFlight.user.email} for flight ${trackedFlight.flightNumber}`);
+        }
       } catch (error) {
         console.error(`Error creating notification for alert ${alert.id}:`, error);
       }
@@ -246,9 +273,12 @@ async function processAlerts(
 /**
  * Creates a notification in the database
  */
-async function createNotification(trackedFlight: any, alert: Alert, change: any): Promise<any> {
-  const message = generateNotificationMessage(alert.type, change, trackedFlight);
-  
+async function createNotification(
+  trackedFlight: any, 
+  alert: Alert, 
+  change: any,
+  message: string
+): Promise<any> {
   return db.notification.create({
     data: {
       title: `Flight Alert: ${trackedFlight.flightNumber}`,
@@ -323,7 +353,8 @@ function detectChanges(trackedFlight: any, latestFlightInfo: Flight): any[] {
   }
   
   // Check for departure update (when flight has departed)
-  if (latestFlightInfo.flight_status === "active" && trackedFlight.status !== "active") {
+  if (latestFlightInfo.flight_status?.toLowerCase().includes("active") && 
+      !trackedFlight.status?.toLowerCase().includes("active")) {
     changes.push({
       type: "DEPARTURE",
       departureTime: latestFlightInfo.departure.actual || latestFlightInfo.departure.scheduled,
@@ -331,7 +362,8 @@ function detectChanges(trackedFlight: any, latestFlightInfo: Flight): any[] {
   }
   
   // Check for arrival update (when flight has arrived)
-  if (latestFlightInfo.flight_status === "landed" && trackedFlight.status !== "landed") {
+  if (latestFlightInfo.flight_status?.toLowerCase().includes("landed") && 
+      !trackedFlight.status?.toLowerCase().includes("landed")) {
     changes.push({
       type: "ARRIVAL",
       arrivalTime: latestFlightInfo.arrival.actual || latestFlightInfo.arrival.scheduled,
