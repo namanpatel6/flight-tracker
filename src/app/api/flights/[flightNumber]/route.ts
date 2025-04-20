@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 
 export async function GET(
   request: Request, 
-  { params }: { params: { flightNumber: string } }
+  { params }: { params: Promise<{ flightNumber: string }> }
 ) {
   // Get the flight number from the request
-  const flightNumber = params.flightNumber;
+  const { flightNumber } = await params;
   
   // Get the current date for default departure and arrival dates
   const today = new Date().toISOString().split('T')[0];

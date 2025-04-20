@@ -20,7 +20,6 @@ export async function trackFlightForUser(
     where: {
       userId,
       flightNumber,
-      airline,
       departureAirport,
       arrivalAirport,
     },
@@ -34,7 +33,6 @@ export async function trackFlightForUser(
   return prisma.trackedFlight.create({
     data: {
       flightNumber,
-      airline,
       departureAirport,
       arrivalAirport,
       departureTime: departureTime ? new Date(departureTime) : undefined,
@@ -99,15 +97,17 @@ export async function updateTrackedFlights() {
       const flightDetails = await getFlightDetails(flight.flightNumber);
       
       if (flightDetails) {
-        // Update flight information
+        // Update flight information with only fields that exist in the TrackedFlight model
         await prisma.trackedFlight.update({
           where: {
             id: flight.id,
           },
           data: {
-            departureTime: new Date(flightDetails.departureTime),
-            arrivalTime: new Date(flightDetails.arrivalTime),
-            status: flightDetails.status,
+            departureTime: flightDetails.departure.scheduled ? new Date(flightDetails.departure.scheduled) : undefined,
+            arrivalTime: flightDetails.arrival.scheduled ? new Date(flightDetails.arrival.scheduled) : undefined,
+            status: flightDetails.flight_status,
+            gate: flightDetails.departure.gate,
+            terminal: flightDetails.departure.terminal,
           },
         });
         

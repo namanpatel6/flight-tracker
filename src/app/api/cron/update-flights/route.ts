@@ -211,17 +211,12 @@ async function processTrackedFlightsWithAlerts() {
 
 // Process rules
 async function processRules() {
-  // Get all active rules with their conditions and alerts
+  // Get all active rules with their alerts
   const rules = await prisma.rule.findMany({
     where: {
       isActive: true,
     },
     include: {
-      conditions: {
-        include: {
-          flight: true,
-        },
-      },
       alerts: {
         where: {
           isActive: true,
@@ -242,11 +237,8 @@ async function processRules() {
     try {
       console.log(`Processing rule: ${rule.name} (${rule.id})`);
       
-      // Get all unique flight IDs from the rule's conditions and alerts
+      // Get all unique flight IDs from the rule's alerts
       const flightIds = new Set<string>();
-      rule.conditions.forEach((condition: any) => {
-        if (condition.flightId) flightIds.add(condition.flightId);
-      });
       rule.alerts.forEach((alert: any) => {
         if (alert.flightId) flightIds.add(alert.flightId);
       });
@@ -301,8 +293,8 @@ async function processRules() {
         };
       }
       
-      // Evaluate the rule
-      const ruleResult = evaluateRuleWithData(rule, flightData);
+      // Evaluate the rule based on alerts instead of conditions
+      const ruleResult = evaluateRuleWithAlerts(rule, flightData);
       
       if (ruleResult.satisfied) {
         console.log(`Rule ${rule.name} satisfied, processing alerts`);
@@ -347,24 +339,27 @@ async function processRules() {
 }
 
 // Helper function to evaluate a rule with flight data
-function evaluateRuleWithData(rule: any, flightData: Record<string, any>): { satisfied: boolean; matchedConditions: string[] } {
-  if (!rule.conditions || rule.conditions.length === 0) {
-    return { satisfied: false, matchedConditions: [] };
+function evaluateRuleWithAlerts(rule: any, flightData: Record<string, any>): { satisfied: boolean; matchedAlerts: string[] } {
+  if (!rule.alerts || rule.alerts.length === 0) {
+    return { satisfied: false, matchedAlerts: [] };
   }
   
-  const matchedConditions: string[] = [];
+  const matchedAlerts: string[] = [];
   
-  // Evaluate each condition
-  const conditionResults = rule.conditions.map((condition: any) => {
-    if (!condition.flightId || !flightData[condition.flightId]) {
+  // Evaluate each alert
+  const alertResults = rule.alerts.map((alert: any) => {
+    if (!alert.flightId || !flightData[alert.flightId]) {
       return false;
     }
     
-    const flight = flightData[condition.flightId];
-    const result = evaluateCondition(condition, flight);
+    const flight = flightData[alert.flightId];
+    // Check if there are changes matching the alert type
+    const result = alert.type === 'any_change' 
+      ? flight.changes.length > 0
+      : flight.changes.some((change: any) => change.field === alert.type);
     
     if (result) {
-      matchedConditions.push(condition.id);
+      matchedAlerts.push(alert.id);
     }
     
     return result;
@@ -373,47 +368,12 @@ function evaluateRuleWithData(rule: any, flightData: Record<string, any>): { sat
   // Combine results based on the rule operator
   let satisfied = false;
   if (rule.operator === "AND") {
-    satisfied = conditionResults.every((result: boolean) => result);
+    satisfied = alertResults.every((result: boolean) => result);
   } else {
-    satisfied = conditionResults.some((result: boolean) => result);
+    satisfied = alertResults.some((result: boolean) => result);
   }
   
-  return { satisfied, matchedConditions };
-}
-
-// Helper function to evaluate a condition
-function evaluateCondition(condition: any, flightData: any): boolean {
-  const { field, operator, value } = condition;
-  const fieldValue = flightData[field];
-  
-  if (fieldValue === undefined) return false;
-  
-  switch (operator) {
-    case "equals":
-      return String(fieldValue) === value;
-    case "notEquals":
-      return String(fieldValue) !== value;
-    case "contains":
-      return String(fieldValue).includes(value);
-    case "notContains":
-      return !String(fieldValue).includes(value);
-    case "greaterThan":
-      return new Date(fieldValue) > new Date(value);
-    case "lessThan":
-      return new Date(fieldValue) < new Date(value);
-    case "greaterThanOrEqual":
-      return new Date(fieldValue) >= new Date(value);
-    case "lessThanOrEqual":
-      return new Date(fieldValue) <= new Date(value);
-    case "between":
-      const [min, max] = value.split(",");
-      return new Date(fieldValue) >= new Date(min) && new Date(fieldValue) <= new Date(max);
-    case "changed":
-      // Check if there are any changes of the specified type
-      return flightData.changes && flightData.changes.some((change: any) => change.type === value);
-    default:
-      return false;
-  }
+  return { satisfied, matchedAlerts };
 }
 
 // Helper function to detect changes in flight information

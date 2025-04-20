@@ -67,12 +67,12 @@ async function getRule(id: string, userId: string) {
 }
 
 interface PageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
-export default async function RuleDetailPage({ params }: { params: { id: string } }) {
+export default async function RuleDetailPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   
   if (!session?.user) {
@@ -80,8 +80,8 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
   }
   
   // Await params before using them
-  const paramsData = await params;
-  const rule = await getRule(paramsData.id, session.user.id);
+  const { id } = await params;
+  const rule = await getRule(id, session.user.id);
   
   if (!rule) {
     return (
@@ -250,29 +250,34 @@ export default async function RuleDetailPage({ params }: { params: { id: string 
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <Bell className="h-5 w-5" />
-              Alerts
+              Alert Conditions
             </CardTitle>
+            <CardDescription>
+              Notifications will be sent when these conditions are met
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {rule.alerts.length === 0 ? (
-              <p className="text-muted-foreground">No alerts configured for this rule.</p>
-            ) : (
-              <div className="space-y-3">
+            {rule.alerts.length > 0 ? (
+              <div className="space-y-4">
                 {rule.alerts.map((alert) => (
-                  <div key={alert.id} className="border rounded-md p-3">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-medium">{alert.type}</span>
-                      <Badge variant={alert.isActive ? "default" : "outline"}>
+                  <div 
+                    key={alert.id} 
+                    className={`p-3 border rounded-md ${
+                      alert.isActive ? 'border-primary/50 bg-primary/5' : 'border-muted bg-muted/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-medium">{alert.type}</div>
+                      <Badge variant={alert.isActive ? "default" : "outline"} className="text-xs">
                         {alert.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </div>
-                    {alert.flight && (
-                      <div className="text-sm text-muted-foreground">
-                        Flight: {alert.flight.flightNumber}
-                      </div>
-                    )}
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                No alert conditions defined
               </div>
             )}
           </CardContent>

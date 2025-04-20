@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { Suspense } from "react";
 
-export default function AuthError() {
+function AuthErrorContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
 
@@ -30,37 +31,51 @@ export default function AuthError() {
   const errorMessage = error ? errorMessages[error] || errorMessages.Default : errorMessages.Default;
 
   return (
+    <Card className="mx-auto max-w-md w-full">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold">Authentication Error</CardTitle>
+        <CardDescription>
+          There was a problem with your authentication
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {errorMessage}
+          </AlertDescription>
+        </Alert>
+        
+        <div className="flex flex-col space-y-2">
+          <Button asChild>
+            <Link href="/auth/signin">
+              Try signing in again
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/">
+              Return to home
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function AuthError() {
+  return (
     <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <Card className="mx-auto max-w-md w-full">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Authentication Error</CardTitle>
-          <CardDescription>
-            There was a problem with your authentication
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>
-              {errorMessage}
-            </AlertDescription>
-          </Alert>
-          
-          <div className="flex flex-col space-y-2">
-            <Button asChild>
-              <Link href="/auth/signin">
-                Try signing in again
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/">
-                Return to home
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <Suspense fallback={
+        <Card className="mx-auto max-w-md w-full">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold">Loading...</CardTitle>
+          </CardHeader>
+        </Card>
+      }>
+        <AuthErrorContent />
+      </Suspense>
     </div>
   );
 } 

@@ -4,31 +4,22 @@ import { SearchResults } from "./search-results";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface SearchPageProps {
-  searchParams: {
+  searchParams: Promise<{
     flight_iata?: string;
     airline_iata?: string;
     flight_date?: string;
-    include_prices?: string;
-  };
+  }>;
 }
 
 export default async function ResultsPage({ searchParams }: SearchPageProps) {
-  // Await searchParams to avoid the Next.js error
-  const params = await Promise.resolve(searchParams);
-  
-  // Destructure params after awaiting
-  const {
-    flight_iata,
-    airline_iata,
-    flight_date,
-    include_prices
-  } = params;
+  // Await searchParams to get the values
+  const params = await searchParams;
 
   // Safe way to check if we have any search params without using Object methods directly
   const hasSearchParams = !!(
-    flight_iata || 
-    airline_iata || 
-    flight_date
+    params.flight_iata || 
+    params.airline_iata || 
+    params.flight_date
   );
 
   return (
@@ -45,7 +36,7 @@ export default async function ResultsPage({ searchParams }: SearchPageProps) {
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Search Results</h2>
               <Suspense fallback={<SearchResultsSkeleton />}>
-                <SearchResults searchParams={searchParams} />
+                <SearchResults searchParams={params} />
               </Suspense>
             </div>
           ) : (

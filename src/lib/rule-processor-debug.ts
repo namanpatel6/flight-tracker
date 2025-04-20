@@ -12,7 +12,6 @@ export async function processRulesWithDebug() {
   const rulesBefore = await db.rule.findMany({
     where: { isActive: true },
     include: {
-      conditions: true,
       alerts: true
     }
   });
@@ -27,7 +26,6 @@ export async function processRulesWithDebug() {
   const rulesAfter = await db.rule.findMany({
     where: { isActive: true },
     include: {
-      conditions: true,
       alerts: true
     }
   });

@@ -4,11 +4,11 @@ import { FlightDetails } from "./flight-details";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface FlightDetailsPageProps {
-  params: {
+  params: Promise<{
     flightNumber: string;
     departureDate: string;
     arrivalDate: string;
-  };
+  }>;
 }
 
 export const metadata = {
@@ -18,10 +18,7 @@ export const metadata = {
 
 export default async function FlightDetailsPage({ params }: FlightDetailsPageProps) {
   // Await params before accessing properties
-  const paramsObj = await Promise.resolve(params);
-  const flightNumber = paramsObj.flightNumber;
-  const departureDate = paramsObj.departureDate;
-  const arrivalDate = paramsObj.arrivalDate;
+  const { flightNumber, departureDate, arrivalDate } = await params;
   
   console.log(`Flight details page params: ${flightNumber}, ${departureDate}, ${arrivalDate}`);
   

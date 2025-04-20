@@ -7,7 +7,7 @@ import { z } from "zod";
 // GET /api/rules/[id]
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -19,7 +19,7 @@ export async function GET(
       );
     }
 
-    const id = params.id;
+    const { id } = await params;
 
     // Use a raw query to get the rule with its related data
     const rule = await db.$queryRaw`
@@ -62,7 +62,7 @@ export async function GET(
 // PATCH /api/rules/[id]
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -74,7 +74,7 @@ export async function PATCH(
       );
     }
 
-    const id = params.id;
+    const { id } = await params;
     
     // Validate the rule exists and belongs to the user
     const existingRule = await db.rule.findUnique({
@@ -255,16 +255,19 @@ export async function PATCH(
                 }
               }
             }
-          },
-        },
+          }
+        }
       });
     });
 
-    return NextResponse.json(updatedRule);
+    return NextResponse.json({
+      message: "Rule updated successfully",
+      rule: updatedRule
+    });
   } catch (error) {
     console.error("Error updating rule:", error);
     return NextResponse.json(
-      { message: "Failed to update rule" },
+      { message: "Error updating rule" },
       { status: 500 }
     );
   }
@@ -273,7 +276,7 @@ export async function PATCH(
 // DELETE /api/rules/[id]
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -285,10 +288,10 @@ export async function DELETE(
       );
     }
 
-    const id = params.id;
+    const { id } = await params;
 
     // Check if the rule exists and belongs to the user
-    const rule = await db.rule.findFirst({
+    const rule = await db.rule.findUnique({
       where: {
         id,
         userId: session.user.id,
@@ -302,13 +305,19 @@ export async function DELETE(
       );
     }
 
-    // Delete the rule and all related records
+    // Delete the rule and all associated alerts in a transaction
     await db.$transaction([
+      // First delete all alerts associated with this rule
       db.alert.deleteMany({
-        where: { ruleId: id },
+        where: {
+          ruleId: id,
+        },
       }),
+      // Then delete the rule itself
       db.rule.delete({
-        where: { id },
+        where: {
+          id,
+        },
       }),
     ]);
 
@@ -319,7 +328,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Error deleting rule:", error);
     return NextResponse.json(
-      { message: "Failed to delete rule" },
+      { message: "Error deleting rule" },
       { status: 500 }
     );
   }

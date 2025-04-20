@@ -205,10 +205,16 @@ async function updateFlightData(flightId: string, flightInfo: Flight): Promise<v
  * Process alerts for a specific flight
  */
 async function processAlerts(
-  trackedFlight: TrackedFlight & { alerts: Alert[], user: User }, 
+  trackedFlight: any,
   flightInfo: Flight, 
   changes: any[]
 ): Promise<void> {
+  // Check if the flight has alerts and user
+  if (!trackedFlight.alerts || !Array.isArray(trackedFlight.alerts) || !trackedFlight.user) {
+    console.log(`No alerts or user info found for flight ${trackedFlight.flightNumber}`);
+    return;
+  }
+
   for (const alert of trackedFlight.alerts) {
     // Find changes relevant to this alert type
     const relevantChanges = changes.filter(change => change.type === alert.type);

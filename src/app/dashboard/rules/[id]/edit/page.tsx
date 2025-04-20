@@ -66,9 +66,9 @@ async function getRuleDetails(id: string, userId: string): Promise<Rule | null> 
 }
 
 interface PageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function EditRulePage({ params }: PageProps) {
@@ -79,8 +79,7 @@ export default async function EditRulePage({ params }: PageProps) {
   }
   
   // Await params before using them
-  const paramsData = await params;
-  const id = paramsData.id;
+  const { id } = await params;
   const rule = await getRuleDetails(id, session.user.id);
   
   if (!rule) {
