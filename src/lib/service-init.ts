@@ -17,6 +17,9 @@ let nearTermInterval: NodeJS.Timeout | null = null;
 let midTermInterval: NodeJS.Timeout | null = null;
 let longTermInterval: NodeJS.Timeout | null = null;
 
+// Flag to detect if we're in a build process
+const IS_BUILD_PROCESS = process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE === 'phase-production-build';
+
 /**
  * Start the optimized tiered polling service
  */
@@ -91,6 +94,13 @@ export function startRulesPolling(intervalMinutes: number = 10): void {
     return;
   }
 
+  // Skip polling during build process to avoid database contention
+  if (IS_BUILD_PROCESS) {
+    console.log("Skipping rules polling during build process");
+    rulesPollingEnabled = false;
+    return;
+  }
+
   console.log(`Starting rules polling service (interval: ${intervalMinutes} minutes)`);
   
   // Process rules immediately once
@@ -140,6 +150,12 @@ export function initializeServices(options: {
     enableRulesPolling = false,
     rulesPollingIntervalMinutes = 10
   } = options;
+  
+  // Skip polling during build process
+  if (IS_BUILD_PROCESS) {
+    console.log("Skipping service initialization during build process");
+    return;
+  }
   
   // Start rules polling if enabled
   if (enableRulesPolling) {

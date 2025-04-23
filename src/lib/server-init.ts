@@ -4,6 +4,7 @@
 
 import { initializeServices } from "./service-init";
 import { ENABLE_RULES_POLLING, RULES_POLLING_INTERVAL_MINUTES, IS_PRODUCTION } from "./env";
+import { withRetry } from "./db";
 
 // Flag to ensure we only initialize once
 let isInitialized = false;
@@ -21,14 +22,19 @@ export async function initializeServerServices(): Promise<void> {
   
   console.log('Initializing server-side services...');
   
-  // Initialize all services with environment-based configuration
-  initializeServices({
-    enableRulesPolling: ENABLE_RULES_POLLING,
-    rulesPollingIntervalMinutes: RULES_POLLING_INTERVAL_MINUTES,
-  });
-  
-  isInitialized = true;
-  console.log('Server-side services initialized successfully');
+  try {
+    // Initialize all services with environment-based configuration
+    // Wrap in Promise to fix type error
+    await withRetry(() => Promise.resolve(initializeServices({
+      enableRulesPolling: ENABLE_RULES_POLLING,
+      rulesPollingIntervalMinutes: RULES_POLLING_INTERVAL_MINUTES,
+    })));
+    
+    isInitialized = true;
+    console.log('Server-side services initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize server-side services:', error);
+  }
 }
 
 /**

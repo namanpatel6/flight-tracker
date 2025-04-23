@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db, withRetry } from "@/lib/db";
 import { batchFetchFlights, getOptimalPollingInterval } from "./aero-api";
 import { evaluateCondition, ConditionField, ConditionOperator, RuleCondition as TypedRuleCondition } from "./rules";
 import { Flight } from "@/types/flight";
@@ -20,302 +20,306 @@ const flightNextPollTimes: Record<string, number> = {};
 export async function processRules(): Promise<void> {
   const now = Date.now();
   
-  // Get all active rules with their alerts (conditions have been removed)
-  const activeRules = await db.rule.findMany({
-    where: {
-      isActive: true,
-    },
-    include: {
-      alerts: {
-        include: {
-          trackedFlight: true,
-          flight: true,
-          user: true,
-        },
+  try {
+    // Get all active rules with their alerts (conditions have been removed)
+    const activeRules = await withRetry(() => db.rule.findMany({
+      where: {
+        isActive: true,
       },
-      user: true,
-    },
-  });
+      include: {
+        alerts: {
+          include: {
+            trackedFlight: true,
+            flight: true,
+            user: true,
+          },
+        },
+        user: true,
+      },
+    }));
 
-  // Filter rules based on adaptive polling schedule
-  const rulesToProcess = activeRules.filter(rule => {
-    // Skip if we polled this rule too recently
-    if (ruleLastPollTimes[rule.id]) {
-      const nextPollTime = ruleNextPollTimes[rule.id] || 0;
-      if (now < nextPollTime) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  console.log(`Processing ${rulesToProcess.length} out of ${activeRules.length} active rules (adaptive polling)`);
-
-  // Process each rule
-  for (const rule of rulesToProcess) {
-    try {
-      console.log(`Processing rule: ${rule.name}`);
-      
-      // Update rule poll time
-      ruleLastPollTimes[rule.id] = now;
-      
-      // Set default next poll time (will be adjusted based on flights later)
-      ruleNextPollTimes[rule.id] = now + (30 * 60 * 1000); // 30 minutes default
-      
-      // Get unique tracked flight IDs from alerts instead of conditions
-      const trackedFlightIds = [...new Set(
-        rule.alerts
-          .filter(a => a.trackedFlightId)
-          .map(a => a.trackedFlightId as string)
-      )];
-      
-      // Skip if no flights to process
-      if (trackedFlightIds.length === 0) {
-        console.log(`Rule ${rule.name} has no flight alerts, skipping`);
-        continue;
-      }
-      
-      console.log(`Rule ${rule.name} references ${trackedFlightIds.length} flights`);
-      
-      // Get all tracked flights at once to avoid multiple DB queries
-      const trackedFlights = await db.trackedFlight.findMany({
-        where: {
-          id: {
-            in: trackedFlightIds
-          }
+    // Filter rules based on adaptive polling schedule
+    const rulesToProcess = activeRules.filter(rule => {
+      // Skip if we polled this rule too recently
+      if (ruleLastPollTimes[rule.id]) {
+        const nextPollTime = ruleNextPollTimes[rule.id] || 0;
+        if (now < nextPollTime) {
+          return false;
         }
-      });
-      
-      // Create map for easy lookup
-      const trackedFlightMap = new Map(
-        trackedFlights.map(flight => [flight.id, flight])
-      );
-      
-      // Filter flights that need to be polled now based on their individual schedules
-      const flightsToFetch = trackedFlights.filter(flight => {
-        if (flightLastPollTimes[flight.id]) {
-          const nextPollTime = flightNextPollTimes[flight.id] || 0;
-          if (now < nextPollTime) {
-            return false;
-          }
-        }
-        return true;
-      });
-      
-      // Skip processing this rule if no flights need polling
-      if (flightsToFetch.length === 0) {
-        console.log(`No flights in rule ${rule.name} need updating at this time, skipping`);
-        continue;
       }
-      
-      // Collect flight numbers for batch processing
-      const flightNumbers = flightsToFetch.map(flight => flight.flightNumber);
-      
-      // Fetch flight data in batch to reduce API calls
-      const flightDataMap = await batchFetchFlights(flightNumbers);
-      
-      // Store flight data for rule evaluation
-      const ruleFlightData: Record<string, any> = {};
-      
-      // Process fetched flights and determine the earliest next poll time
-      let earliestNextPoll = now + (24 * 60 * 60 * 1000); // Default to 24 hours
-      
-      // Update each flight and prepare data for rule evaluation
-      for (const flight of flightsToFetch) {
-        // Mark flight as polled
-        flightLastPollTimes[flight.id] = now;
+      return true;
+    });
+
+    console.log(`Processing ${rulesToProcess.length} out of ${activeRules.length} active rules (adaptive polling)`);
+
+    // Process each rule
+    for (const rule of rulesToProcess) {
+      try {
+        console.log(`Processing rule: ${rule.name}`);
         
-        const latestFlightInfo = flightDataMap[flight.flightNumber];
+        // Update rule poll time
+        ruleLastPollTimes[rule.id] = now;
         
-        if (!latestFlightInfo) {
-          console.log(`No flight information found for ${flight.flightNumber}`);
-          
-          // For not found flights, check again in 1 hour
-          flightNextPollTimes[flight.id] = now + (60 * 60 * 1000);
-          
-          // Use existing data for rule evaluation
-          ruleFlightData[flight.id] = { ...flight, changes: [] };
-          
+        // Set default next poll time (will be adjusted based on flights later)
+        ruleNextPollTimes[rule.id] = now + (30 * 60 * 1000); // 30 minutes default
+        
+        // Get unique tracked flight IDs from alerts instead of conditions
+        const trackedFlightIds = [...new Set(
+          rule.alerts
+            .filter(a => a.trackedFlightId)
+            .map(a => a.trackedFlightId as string)
+        )];
+        
+        // Skip if no flights to process
+        if (trackedFlightIds.length === 0) {
+          console.log(`Rule ${rule.name} has no flight alerts, skipping`);
           continue;
         }
         
-        // Check for changes
-        const changes = detectChanges(flight, latestFlightInfo);
+        console.log(`Rule ${rule.name} references ${trackedFlightIds.length} flights`);
         
-        // Update the flight in the database if there are changes
-        if (changes.length > 0) {
-          await updateFlightData(flight.id, latestFlightInfo);
-        }
-        
-        // Store the flight data for rule evaluation
-        ruleFlightData[flight.id] = {
-          ...flight,
-          status: latestFlightInfo.flight_status || flight.status,
-          departureTime: latestFlightInfo.departure.scheduled || flight.departureTime,
-          arrivalTime: latestFlightInfo.arrival.scheduled || flight.arrivalTime,
-          gate: latestFlightInfo.departure.gate || flight.gate,
-          terminal: latestFlightInfo.departure.terminal || flight.terminal,
-          changes,
-        };
-        
-        // Determine optimal polling interval for this flight
-        const pollingInfo = getOptimalPollingInterval(latestFlightInfo);
-        
-        // Check if we should stop tracking this flight
-        if (pollingInfo.stopTracking) {
-          console.log(`Flight ${flight.flightNumber} has ${latestFlightInfo.flight_status} status - stopping tracking in rules`);
-          
-          // Create notification message
-          const notificationMessage = `Tracking for ${flight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`;
-          
-          // Create a notification to inform the user that tracking has stopped
-          await db.notification.create({
-            data: {
-              title: `Flight Tracking Ended`,
-              message: notificationMessage,
-              type: "INFO",
-              userId: flight.userId,
-              flightId: flight.id
+        // Get all tracked flights at once to avoid multiple DB queries
+        const trackedFlights = await withRetry(() => db.trackedFlight.findMany({
+          where: {
+            id: {
+              in: trackedFlightIds
             }
-          });
-          
-          // Fetch user information to send email notification
-          const user = await db.user.findUnique({
-            where: { id: flight.userId }
-          });
-          
-          // Send email notification if user has email
-          if (user?.email) {
-            // Create email content
-            const emailData = createFlightAlertEmail({
-              userName: user.name || '',
-              flightNumber: flight.flightNumber,
-              alertType: 'INFO',
-              message: notificationMessage,
-            });
-            
-            // Send the email
-            await sendNotificationEmail({
-              to: user.email,
-              subject: emailData.subject,
-              html: emailData.html,
-              text: emailData.text,
-            });
-            
-            console.log(`Flight tracking ended email sent to ${user.email} for flight ${flight.flightNumber}`);
           }
-          
-          // Clean up tracking maps
-          delete flightLastPollTimes[flight.id];
-          delete flightNextPollTimes[flight.id];
-          
+        }));
+        
+        // Create map for easy lookup
+        const trackedFlightMap = new Map(
+          trackedFlights.map(flight => [flight.id, flight])
+        );
+        
+        // Filter flights that need to be polled now based on their individual schedules
+        const flightsToFetch = trackedFlights.filter(flight => {
+          if (flightLastPollTimes[flight.id]) {
+            const nextPollTime = flightNextPollTimes[flight.id] || 0;
+            if (now < nextPollTime) {
+              return false;
+            }
+          }
+          return true;
+        });
+        
+        // Skip processing this rule if no flights need polling
+        if (flightsToFetch.length === 0) {
+          console.log(`No flights in rule ${rule.name} need updating at this time, skipping`);
           continue;
         }
         
-        // If changes were detected, poll more frequently (but respect minimum interval)
-        const adjustedInterval = changes.length > 0 
-          ? Math.min(pollingInfo.interval * 1000, 15 * 60 * 1000) // Max 15 minutes if changes detected 
-          : pollingInfo.interval * 1000;
+        // Collect flight numbers for batch processing
+        const flightNumbers = flightsToFetch.map(flight => flight.flightNumber);
         
-        flightNextPollTimes[flight.id] = now + adjustedInterval;
+        // Fetch flight data in batch to reduce API calls
+        const flightDataMap = await batchFetchFlights(flightNumbers);
         
-        // Update earliest next poll time for the entire rule
-        earliestNextPoll = Math.min(earliestNextPoll, now + adjustedInterval);
-      }
-      
-      // For flights that weren't fetched, still include their existing data
-      for (const flightId of trackedFlightIds) {
-        if (!ruleFlightData[flightId] && trackedFlightMap.has(flightId)) {
-          const flight = trackedFlightMap.get(flightId);
-          ruleFlightData[flightId] = { ...flight, changes: [] };
-        }
-      }
-      
-      // Schedule next rule check based on the earliest flight poll time
-      ruleNextPollTimes[rule.id] = earliestNextPoll;
-      
-      // Since we don't have conditions anymore, we'll consider the rule satisfied
-      // if there are any changes to any of the flights associated with the rule's alerts
-      const anyChanges = Object.values(ruleFlightData).some(
-        flightData => flightData.changes && flightData.changes.length > 0
-      );
-      
-      if (anyChanges) {
-        console.log(`Changes detected for rule ${rule.name}, processing alerts`);
+        // Store flight data for rule evaluation
+        const ruleFlightData: Record<string, any> = {};
         
-        // Process alerts for this rule
-        for (const alert of rule.alerts) {
-          // Skip inactive alerts
-          if (!alert.isActive) continue;
+        // Process fetched flights and determine the earliest next poll time
+        let earliestNextPoll = now + (24 * 60 * 60 * 1000); // Default to 24 hours
+        
+        // Update each flight and prepare data for rule evaluation
+        for (const flight of flightsToFetch) {
+          // Mark flight as polled
+          flightLastPollTimes[flight.id] = now;
           
-          const flightId = alert.trackedFlightId || alert.flightId;
-          if (!flightId || !alert.user) continue;
+          const latestFlightInfo = flightDataMap[flight.flightNumber];
           
-          const flightWithChanges = ruleFlightData[flightId];
-          if (!flightWithChanges) continue;
-          
-          // Skip if there are no changes relevant to this alert
-          const relevantChanges = flightWithChanges.changes.filter(
-            (change: { type: string }) => change.type === alert.type
-          );
-          
-          if (relevantChanges.length === 0) continue;
-          
-          // For threshold alerts, check if threshold is exceeded
-          if (alert.type === "DELAY" && alert.threshold) {
-            const delayChange = relevantChanges.find(
-              (change: { delayMinutes: number }) => change.delayMinutes >= alert.threshold!
-            );
-            if (!delayChange) continue;
+          if (!latestFlightInfo) {
+            console.log(`No flight information found for ${flight.flightNumber}`);
+            
+            // For not found flights, check again in 1 hour
+            flightNextPollTimes[flight.id] = now + (60 * 60 * 1000);
+            
+            // Use existing data for rule evaluation
+            ruleFlightData[flight.id] = { ...flight, changes: [] };
+            
+            continue;
           }
           
-          // Generate notification message
-          const notificationMessage = generateRuleNotificationMessage(rule, alert, flightWithChanges);
+          // Check for changes
+          const changes = detectChanges(flight, latestFlightInfo);
           
-          try {
-            // Create notification in database
+          // Update the flight in the database if there are changes
+          if (changes.length > 0) {
+            await updateFlightData(flight.id, latestFlightInfo);
+          }
+          
+          // Store the flight data for rule evaluation
+          ruleFlightData[flight.id] = {
+            ...flight,
+            status: latestFlightInfo.flight_status || flight.status,
+            departureTime: latestFlightInfo.departure.scheduled || flight.departureTime,
+            arrivalTime: latestFlightInfo.arrival.scheduled || flight.arrivalTime,
+            gate: latestFlightInfo.departure.gate || flight.gate,
+            terminal: latestFlightInfo.departure.terminal || flight.terminal,
+            changes,
+          };
+          
+          // Determine optimal polling interval for this flight
+          const pollingInfo = getOptimalPollingInterval(latestFlightInfo);
+          
+          // Check if we should stop tracking this flight
+          if (pollingInfo.stopTracking) {
+            console.log(`Flight ${flight.flightNumber} has ${latestFlightInfo.flight_status} status - stopping tracking in rules`);
+            
+            // Create notification message
+            const notificationMessage = `Tracking for ${flight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`;
+            
+            // Create a notification to inform the user that tracking has stopped
             await db.notification.create({
               data: {
-                title: `Rule Alert: ${rule.name}`,
+                title: `Flight Tracking Ended`,
                 message: notificationMessage,
-                type: alert.type,
-                read: false,
-                userId: alert.userId,
-                flightId: flightId,
-                ruleId: rule.id,
-              },
+                type: "INFO",
+                userId: flight.userId,
+                flightId: flight.id
+              }
             });
             
-            console.log(`Notification created for user ${alert.userId} for rule ${rule.name}`);
+            // Fetch user information to send email notification
+            const user = await db.user.findUnique({
+              where: { id: flight.userId }
+            });
             
             // Send email notification if user has email
-            if (alert.user.email) {
+            if (user?.email) {
               // Create email content
               const emailData = createFlightAlertEmail({
-                userName: alert.user.name || '',
-                flightNumber: flightWithChanges.flightNumber,
-                alertType: alert.type,
+                userName: user.name || '',
+                flightNumber: flight.flightNumber,
+                alertType: 'INFO',
                 message: notificationMessage,
               });
               
               // Send the email
               await sendNotificationEmail({
-                to: alert.user.email,
+                to: user.email,
                 subject: emailData.subject,
                 html: emailData.html,
                 text: emailData.text,
               });
               
-              console.log(`Email notification sent to ${alert.user.email}`);
+              console.log(`Flight tracking ended email sent to ${user.email} for flight ${flight.flightNumber}`);
             }
-          } catch (error) {
-            console.error(`Error creating notification for rule ${rule.name}:`, error);
+            
+            // Clean up tracking maps
+            delete flightLastPollTimes[flight.id];
+            delete flightNextPollTimes[flight.id];
+            
+            continue;
+          }
+          
+          // If changes were detected, poll more frequently (but respect minimum interval)
+          const adjustedInterval = changes.length > 0 
+            ? Math.min(pollingInfo.interval * 1000, 15 * 60 * 1000) // Max 15 minutes if changes detected 
+            : pollingInfo.interval * 1000;
+          
+          flightNextPollTimes[flight.id] = now + adjustedInterval;
+          
+          // Update earliest next poll time for the entire rule
+          earliestNextPoll = Math.min(earliestNextPoll, now + adjustedInterval);
+        }
+        
+        // For flights that weren't fetched, still include their existing data
+        for (const flightId of trackedFlightIds) {
+          if (!ruleFlightData[flightId] && trackedFlightMap.has(flightId)) {
+            const flight = trackedFlightMap.get(flightId);
+            ruleFlightData[flightId] = { ...flight, changes: [] };
           }
         }
+        
+        // Schedule next rule check based on the earliest flight poll time
+        ruleNextPollTimes[rule.id] = earliestNextPoll;
+        
+        // Since we don't have conditions anymore, we'll consider the rule satisfied
+        // if there are any changes to any of the flights associated with the rule's alerts
+        const anyChanges = Object.values(ruleFlightData).some(
+          flightData => flightData.changes && flightData.changes.length > 0
+        );
+        
+        if (anyChanges) {
+          console.log(`Changes detected for rule ${rule.name}, processing alerts`);
+          
+          // Process alerts for this rule
+          for (const alert of rule.alerts) {
+            // Skip inactive alerts
+            if (!alert.isActive) continue;
+            
+            const flightId = alert.trackedFlightId || alert.flightId;
+            if (!flightId || !alert.user) continue;
+            
+            const flightWithChanges = ruleFlightData[flightId];
+            if (!flightWithChanges) continue;
+            
+            // Skip if there are no changes relevant to this alert
+            const relevantChanges = flightWithChanges.changes.filter(
+              (change: { type: string }) => change.type === alert.type
+            );
+            
+            if (relevantChanges.length === 0) continue;
+            
+            // For threshold alerts, check if threshold is exceeded
+            if (alert.type === "DELAY" && alert.threshold) {
+              const delayChange = relevantChanges.find(
+                (change: { delayMinutes: number }) => change.delayMinutes >= alert.threshold!
+              );
+              if (!delayChange) continue;
+            }
+            
+            // Generate notification message
+            const notificationMessage = generateRuleNotificationMessage(rule, alert, flightWithChanges);
+            
+            try {
+              // Create notification in database
+              await db.notification.create({
+                data: {
+                  title: `Rule Alert: ${rule.name}`,
+                  message: notificationMessage,
+                  type: alert.type,
+                  read: false,
+                  userId: alert.userId,
+                  flightId: flightId,
+                  ruleId: rule.id,
+                },
+              });
+              
+              console.log(`Notification created for user ${alert.userId} for rule ${rule.name}`);
+              
+              // Send email notification if user has email
+              if (alert.user.email) {
+                // Create email content
+                const emailData = createFlightAlertEmail({
+                  userName: alert.user.name || '',
+                  flightNumber: flightWithChanges.flightNumber,
+                  alertType: alert.type,
+                  message: notificationMessage,
+                });
+                
+                // Send the email
+                await sendNotificationEmail({
+                  to: alert.user.email,
+                  subject: emailData.subject,
+                  html: emailData.html,
+                  text: emailData.text,
+                });
+                
+                console.log(`Email notification sent to ${alert.user.email}`);
+              }
+            } catch (error) {
+              console.error(`Error creating notification for rule ${rule.name}:`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing rule ${rule.name}:`, error);
       }
-    } catch (error) {
-      console.error(`Error processing rule ${rule.name}:`, error);
     }
+  } catch (error) {
+    console.error("Error in processRules:", error);
   }
 }
 
