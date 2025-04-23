@@ -3,15 +3,15 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "./db";
 import { compare } from "bcrypt";
+import { CustomPrismaAdapter } from "./auth-adapter";
 
 // NextAuth configuration
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(db),
+  adapter: CustomPrismaAdapter(db),
   session: {
     strategy: "jwt",
   },
@@ -24,6 +24,14 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+        };
+      },
     }),
     CredentialsProvider({
       name: "Credentials",
@@ -74,28 +82,40 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async jwt({ token, user }) {
-      const dbUser = await db.user.findFirst({
+    async jwt({ token, user, account }) {
+      // Initial sign in
+      if (account && user) {
+        return {
+          ...token,
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          picture: user.image,
+        };
+      }
+
+      // Return previous token if the user already exists
+      const existingUser = await db.user.findFirst({
         where: {
           email: token.email,
         },
       });
 
-      if (!dbUser) {
-        if (user) {
-          token.id = user.id;
-        }
-        return token;
+      if (existingUser) {
+        return {
+          ...token,
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          picture: existingUser.image,
+        };
       }
 
-      return {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        picture: dbUser.image,
-      };
+      return token;
     },
   },
+  debug: process.env.NODE_ENV === "development",
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 const prisma = new PrismaClient();
@@ -119,7 +139,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 // Get the current session
 export async function getSession() {
-  return await getServerSession();
+  return await getServerSession(authOptions);
 }
 
 // Get the current user
