@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processRules } from "@/lib/rule-processor";
-import { Receiver } from "@upstash/qstash";
+
+// Ensure crypto is available for Node.js
+// This helps prevent the "Cannot set properties of undefined (setting 'SHA224')" error
+if (typeof globalThis.crypto === 'undefined') {
+  // Only import in server context
+  if (typeof window === 'undefined') {
+    // @ts-ignore - Node.js specific handling
+    global.crypto = require('crypto').webcrypto;
+  }
+}
 
 // This route is meant to be called by Upstash QStash
 // It processes rules using the existing rule processor
 
-// Initialize the QStash receiver with your signing key from environment variables
-const receiver = new Receiver({
-  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || "",
-  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || "",
-});
+// Dynamic import function for QStash
+const getQStashReceiver = async () => {
+  // Only import when needed
+  const { Receiver } = await import("@upstash/qstash");
+  
+  return new Receiver({
+    currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY || "",
+    nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || "",
+  });
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +35,9 @@ export async function POST(request: NextRequest) {
     // Skip verification in development mode for easier testing
     if (process.env.NODE_ENV !== "development") {
       try {
+        // Dynamically get receiver
+        const receiver = await getQStashReceiver();
+        
         const isValid = await receiver.verify({
           body,
           signature,

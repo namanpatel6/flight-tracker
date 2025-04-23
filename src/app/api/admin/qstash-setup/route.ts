@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { scheduleRuleProcessing, checkQStashSchedules } from "@/lib/qstash-config";
+// Remove the direct import and use dynamic import instead
+// import { scheduleRuleProcessing, checkQStashSchedules } from "@/lib/qstash-config";
+
+// Use dynamic imports to prevent crypto issues during build
+const getQStashConfig = async () => {
+  // Only import the module when the function is called
+  const { scheduleRuleProcessing, checkQStashSchedules } = await import("@/lib/qstash-config");
+  return { scheduleRuleProcessing, checkQStashSchedules };
+};
 
 /**
  * Admin endpoint to set up QStash schedules for rule processing
@@ -17,6 +25,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+    
+    // Dynamically import and use the QStash config
+    const { scheduleRuleProcessing } = await getQStashConfig();
     
     // Schedule all rule processing intervals
     const success = await scheduleRuleProcessing();
@@ -55,6 +66,9 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+    
+    // Dynamically import and use the QStash config
+    const { checkQStashSchedules } = await getQStashConfig();
     
     // Check current QStash configuration
     const status = await checkQStashSchedules();

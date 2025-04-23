@@ -1,4 +1,15 @@
-import { Client } from "@upstash/qstash";
+// Remove direct import and use dynamic import instead
+// import { Client } from "@upstash/qstash";
+
+// Ensure crypto is available for Node.js
+// This helps prevent the "Cannot set properties of undefined (setting 'SHA224')" error
+if (typeof globalThis.crypto === 'undefined') {
+  // Only import in server context
+  if (typeof window === 'undefined') {
+    // @ts-ignore - Node.js specific handling
+    global.crypto = require('crypto').webcrypto;
+  }
+}
 
 // Polling interval groups (in minutes)
 export enum PollingInterval {
@@ -8,10 +19,15 @@ export enum PollingInterval {
   VERY_DISTANT = 720,  // Every 12 hours for flights >24 hours away
 }
 
-// Initialize QStash client
-const qstashClient = new Client({
-  token: process.env.QSTASH_TOKEN || "",
-});
+// Dynamic function to get QStash client
+async function getQStashClient() {
+  // Only import when needed
+  const { Client } = await import("@upstash/qstash");
+  
+  return new Client({
+    token: process.env.QSTASH_TOKEN || "",
+  });
+}
 
 // Base URL for your application
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://your-vercel-app-url.vercel.app";
@@ -53,6 +69,9 @@ export async function scheduleRuleProcessing() {
  */
 async function clearExistingSchedules() {
   try {
+    // Get client via dynamic import
+    const qstashClient = await getQStashClient();
+    
     // List all schedules
     const schedules = await qstashClient.schedules.list();
     
@@ -74,6 +93,9 @@ async function clearExistingSchedules() {
  */
 async function setupScheduleForInterval(interval: PollingInterval) {
   try {
+    // Get client via dynamic import
+    const qstashClient = await getQStashClient();
+    
     // Define the webhook URL for our API endpoint
     const webhookUrl = `${BASE_URL}/api/qstash/process-rules?interval=${interval}`;
     
@@ -112,6 +134,9 @@ async function setupScheduleForInterval(interval: PollingInterval) {
  */
 export async function checkQStashSchedules() {
   try {
+    // Get client via dynamic import
+    const qstashClient = await getQStashClient();
+    
     const schedules = await qstashClient.schedules.list();
     
     // Check if we have at least our 4 expected schedules
