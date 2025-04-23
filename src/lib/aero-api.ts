@@ -318,9 +318,9 @@ export function getOptimalPollingInterval(flightData: Flight): { interval: numbe
     const timeUntilDeparture = scheduledTime - Date.now();
     
     if (timeUntilDeparture > 24 * 60 * 60 * 1000) { // > 24 hours
-      return { interval: 6 * 60 * 60, stopTracking: false }; // 6 hours
+      return { interval: 12 * 60 * 60, stopTracking: false }; // 12 hours
     } else if (timeUntilDeparture > 12 * 60 * 60 * 1000) { // > 12 hours
-      return { interval: 60 * 60, stopTracking: false }; // 1 hour
+      return { interval: 2 * 60 * 60, stopTracking: false }; // 2 hours
     } else {
       return { interval: 15 * 60, stopTracking: false }; // 15 minutes
     }
