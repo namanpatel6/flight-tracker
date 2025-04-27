@@ -76,7 +76,7 @@ export default async function RuleDetailPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   
   if (!session?.user) {
-    redirect('/login');
+    redirect('/auth/signin');
   }
   
   // Await params before using them
