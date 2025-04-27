@@ -2,12 +2,24 @@ import { NextResponse } from "next/server";
 import { getFlightDetails } from "@/lib/aero-api";
 import { searchFlightPrice } from "@/lib/flight-price-api";
 import { Price } from "@/types/flight";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(
   request: Request, 
   { params }: { params: Promise<{ flightNumber: string; departureDate: string; arrivalDate: string }> }
 ) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { message: "Unauthorized - Please sign in to view flight details" },
+        { status: 401 }
+      );
+    }
+    
     // Properly await params before accessing properties
     const { flightNumber, departureDate, arrivalDate } = await params;
     

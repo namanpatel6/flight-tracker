@@ -1,5 +1,4 @@
 import { getServerSession } from "next-auth";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { NextAuthOptions } from "next-auth";
@@ -8,12 +7,15 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "./db";
 import { compare } from "bcrypt";
 import { CustomPrismaAdapter } from "./auth-adapter";
+import crypto from "crypto";
 
 // NextAuth configuration
 export const authOptions: NextAuthOptions = {
   adapter: CustomPrismaAdapter(db),
   session: {
     strategy: "jwt",
+    // Set maximum session age - shorter time for security and to prevent stale sessions
+    maxAge: 12 * 60 * 60, // 12 hours
   },
   pages: {
     signIn: "/auth/signin",
@@ -118,8 +120,6 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
 };
 
-const prisma = new PrismaClient();
-
 // Schema for registration validation
 export const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -150,7 +150,7 @@ export async function getCurrentUser() {
     return null;
   }
 
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { email: session.user.email },
   });
 
@@ -162,7 +162,7 @@ export async function registerUser(data: RegisterInput) {
   const { name, email, password } = data;
   
   // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
+  const existingUser = await db.user.findUnique({
     where: { email },
   });
 
@@ -174,7 +174,7 @@ export async function registerUser(data: RegisterInput) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   // Create user
-  const user = await prisma.user.create({
+  const user = await db.user.create({
     data: {
       name,
       email,
@@ -196,7 +196,7 @@ export async function sendVerificationEmail(email: string) {
   const token = crypto.randomUUID();
   const expires = new Date(Date.now() + 3600 * 1000); // 1 hour from now
   
-  await prisma.verificationToken.create({
+  await db.verificationToken.create({
     data: {
       identifier: email,
       token,
@@ -212,7 +212,7 @@ export async function sendVerificationEmail(email: string) {
 
 // Verify email with token
 export async function verifyEmail(token: string) {
-  const verificationToken = await prisma.verificationToken.findUnique({
+  const verificationToken = await db.verificationToken.findUnique({
     where: { token },
   });
   
@@ -225,13 +225,13 @@ export async function verifyEmail(token: string) {
   }
   
   // Update user
-  await prisma.user.update({
+  await db.user.update({
     where: { email: verificationToken.identifier },
     data: { emailVerified: new Date() },
   });
   
   // Delete token
-  await prisma.verificationToken.delete({
+  await db.verificationToken.delete({
     where: { token },
   });
   

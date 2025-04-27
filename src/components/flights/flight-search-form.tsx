@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plane } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Search, Plane, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/custom-ui";
@@ -10,6 +11,7 @@ import { DatePicker } from "@/components/custom-ui";
 // Flight Search Form Component
 export function FlightSearchForm() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   
   // State for form values
   const [flightNumber, setFlightNumber] = useState("");
@@ -17,6 +19,13 @@ export function FlightSearchForm() {
   
   // State for errors
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Handle authentication
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/flights/results'));
+    }
+  }, [status, router]);
 
   // Validate form before submission
   const validateForm = () => {
@@ -37,6 +46,12 @@ export function FlightSearchForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Verify user is authenticated first
+    if (status !== 'authenticated') {
+      router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/flights/results'));
+      return;
+    }
+    
     if (!validateForm()) {
       return;
     }
@@ -52,6 +67,24 @@ export function FlightSearchForm() {
     // Navigate to search results page
     router.push(`/flights/results?${params.toString()}`);
   };
+
+  // Show authentication required message
+  if (status === 'unauthenticated') {
+    return (
+      <div className="w-full bg-white rounded-lg shadow-md p-6">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <ShieldAlert className="h-12 w-12 text-amber-500" />
+          <h2 className="text-lg font-semibold">Authentication Required</h2>
+          <p className="text-center text-muted-foreground mb-2">
+            Please sign in to search for flights
+          </p>
+          <Button onClick={() => router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/flights/results'))}>
+            Sign In
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-white rounded-lg shadow-md p-6">

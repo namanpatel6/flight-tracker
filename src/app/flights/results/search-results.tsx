@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Flight } from "@/types/flight";
 import { FlightCard } from "@/components/flight-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 interface SearchParamsType {
   flight_iata?: string;
@@ -20,10 +22,18 @@ interface SearchResultsProps {
 
 export function SearchResults({ searchParams }: SearchResultsProps) {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [flights, setFlights] = useState<Flight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resolvedParams, setResolvedParams] = useState<SearchParamsType | null>(null);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/flights/results'));
+    }
+  }, [status, router]);
 
   // Resolve the searchParams Promise
   useEffect(() => {
@@ -47,7 +57,7 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
 
   // Fetch flights based on search parameters
   useEffect(() => {
-    if (!resolvedParams) return;
+    if (!resolvedParams || status !== 'authenticated') return;
 
     const fetchFlights = async () => {
       try {
@@ -89,6 +99,11 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
         const response = await fetch(`/api/flights/search?${queryParams.toString()}`);
         
         if (!response.ok) {
+          if (response.status === 401) {
+            // Handle unauthorized specifically
+            router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/flights/results'));
+            return;
+          }
           throw new Error(`API request failed with status ${response.status}`);
         }
         
@@ -103,7 +118,36 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
     };
 
     fetchFlights();
-  }, [resolvedParams]);
+  }, [resolvedParams, status, router]);
+
+  // Show loading during authentication check
+  if (status === 'loading') {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  // Show authentication required message
+  if (status === 'unauthenticated') {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <ShieldAlert className="h-16 w-16 text-amber-500" />
+          <h2 className="text-xl font-semibold">Authentication Required</h2>
+          <p className="text-center text-muted-foreground mb-4">
+            Please sign in to search for flights
+          </p>
+          <Button onClick={() => router.push('/auth/signin?callbackUrl=' + encodeURIComponent('/flights/results'))}>
+            Sign In
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!resolvedParams) {
     return (

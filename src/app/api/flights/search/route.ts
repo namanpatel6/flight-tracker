@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
 import { flightSearchSchema, searchFlights } from "@/lib/aero-api";
 import { fetchFlightPrices } from "@/lib/flight-price-api";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { message: "Unauthorized - Please sign in to search for flights" },
+        { status: 401 }
+      );
+    }
+    
     const { searchParams } = new URL(request.url);
     
     console.log("Flight search API called with params:", Object.fromEntries(searchParams.entries()));
