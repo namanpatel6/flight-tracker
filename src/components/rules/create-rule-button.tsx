@@ -103,6 +103,7 @@ const selectedFlightSchema = z.object({
   arrivalTime: z.string().optional(),
   price: z.string().optional(),
   isSelected: z.boolean(),
+  flight_date: z.string().optional(),
 });
 
 // Map condition fields to relevant alert types for auto-selection
@@ -292,10 +293,12 @@ export function CreateRuleButton() {
       arrivalTime: flight.arrival.scheduled,
       price: flight.price?.formatted,
       isSelected: true,
+      flight_date: flight.flight_date,
     }]);
 
-    // Reset alerts
+    // Reset alerts and selected alert types
     setAlerts([]);
+    setSelectedAlertTypes([]);
     
     // Update recommended alert types based on the selected flight
     // Now we recommend all alert types since there are no conditions
@@ -413,10 +416,7 @@ export function CreateRuleButton() {
           // We'll recommend all alert types since there are no conditions
           setRecommendedAlertTypes(ALERT_TYPES.map(type => type.id));
           
-          // Auto-select recommended alert types if none are selected yet
-          if (selectedAlertTypes.length === 0) {
-            setSelectedAlertTypes(ALERT_TYPES.map(type => type.id));
-          }
+          // No longer auto-select alert types
         }
         
         // If moving from alerts to summary, generate alerts from selected types
@@ -617,13 +617,16 @@ export function CreateRuleButton() {
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Date</label>
+                    <label className="text-sm font-medium">Date (UTC)</label>
                     <DatePicker
                       value={flightSearchForm.getValues().departureDate}
                       onChange={(date) => date && flightSearchForm.setValue('departureDate', date)}
-                      placeholder="Select date"
+                      placeholder="Select date (UTC)"
                       minDate={new Date()}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Times are displayed in UTC. Flight schedules use UTC for international consistency.
+                    </p>
                   </div>
                   
                   {errors.search && (
@@ -689,7 +692,8 @@ export function CreateRuleButton() {
                             <Checkbox checked={isSelected} />
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {flight.departure.scheduled ? ` Departure: ${formatDateWithTimezone(flight.departure.scheduled)}` : ''}
+                            {flight.departure.scheduled ? ` Departure: ${formatDateWithTimezone(flight.departure.scheduled, flight.flight_date)}` : ''}
+                            <span className="block">(All times shown in UTC)</span>
                           </div>
                         </div>
                       );
@@ -707,19 +711,12 @@ export function CreateRuleButton() {
                 <h3 className="text-base font-medium">Configure Alerts</h3>
                 <p className="text-sm text-muted-foreground">
                   Select which types of alerts you want to receive for your selected flights.
-                  {recommendedAlertTypes.length > 0 && (
-                    <span className="block mt-1 text-blue-600">
-                      Based on your conditions, we recommend: {recommendedAlertTypes.map(type => 
-                        ALERT_TYPES.find(t => t.id === type)?.label).join(', ')}
-                    </span>
-                  )}
                 </p>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 {ALERT_TYPES.map((alertType) => {
                   const isSelected = selectedAlertTypes.includes(alertType.id);
-                  const isRecommended = recommendedAlertTypes.includes(alertType.id);
                   
                   return (
                     <Card 
@@ -727,9 +724,7 @@ export function CreateRuleButton() {
                       className={`cursor-pointer transition-all duration-200 ${
                         isSelected 
                           ? 'border-primary bg-primary/10 shadow-md' 
-                          : isRecommended 
-                            ? 'border-blue-300 shadow-sm' 
-                            : 'hover:bg-muted'
+                          : 'hover:bg-muted'
                       }`}
                       onClick={() => handleSelectAlertType(alertType.id)}
                     >
@@ -737,9 +732,6 @@ export function CreateRuleButton() {
                         <div>
                           <h4 className={`font-medium ${isSelected ? 'text-primary' : ''}`}>
                             {alertType.label}
-                            {isRecommended && !isSelected && (
-                              <span className="ml-2 text-xs text-blue-600 font-normal">Recommended</span>
-                            )}
                           </h4>
                           <p className="text-sm text-muted-foreground">
                             Get notified about {alertType.label.toLowerCase()} events
@@ -778,6 +770,12 @@ export function CreateRuleButton() {
                             <span className="text-sm">
                               Will apply to {selectedFlights.length} selected flight(s)
                             </span>
+                            {selectedFlights.length > 0 && selectedFlights[0].departureTime && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Flight: {selectedFlights[0].flightNumber} ({selectedFlights[0].departureAirport} → {selectedFlights[0].arrivalAirport})
+                                <span className="block">Departure: {formatDateWithTimezone(selectedFlights[0].departureTime, selectedFlights[0].flight_date)} (UTC)</span>
+                              </div>
+                            )}
                           </div>
                           <Button 
                             variant="ghost" 

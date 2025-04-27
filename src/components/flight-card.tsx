@@ -13,13 +13,15 @@ interface FlightCardProps {
 }
 
 export function FlightCard({ flight }: FlightCardProps) {
-  // Format dates for the URL
-  const departureDate = flight.departure.scheduled 
-    ? new Date(flight.departure.scheduled).toISOString().split('T')[0] 
-    : new Date().toISOString().split('T')[0];
+  // Format dates for the URL - prioritize the flight_date field when available
+  const departureDate = flight.flight_date || 
+    (flight.departure.scheduled 
+      ? flight.departure.scheduled.split('T')[0] 
+      : new Date().toISOString().split('T')[0]);
   
+  // For arrival date, use the next day if it's not specified
   const arrivalDate = flight.arrival.scheduled 
-    ? new Date(flight.arrival.scheduled).toISOString().split('T')[0] 
+    ? flight.arrival.scheduled.split('T')[0]
     : departureDate; // Default to departure date if arrival date isn't available
   
   return (
@@ -48,8 +50,9 @@ export function FlightCard({ flight }: FlightCardProps) {
                 {flight.airline.name} {flight.flight.iata || flight.flight.icao}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {formatDateWithTimezone(flight.departure.scheduled)}
+                {formatDateWithTimezone(flight.departure.scheduled, flight.flight_date)}
               </p>
+              <p className="text-xs text-muted-foreground">All times in UTC</p>
             </div>
             {flight.flight_status && (
               <div className={cn(
@@ -87,10 +90,10 @@ export function FlightCard({ flight }: FlightCardProps) {
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatDateWithTimezone(flight.departure.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.departure.scheduled, flight.flight_date)}</div>
                 {flight.departure.actual && flight.departure.actual !== flight.departure.scheduled && (
                   <div className="text-sm text-muted-foreground">
-                    (Actual: {formatDateWithTimezone(flight.departure.actual)})
+                    (Actual: {formatDateWithTimezone(flight.departure.actual, flight.flight_date)})
                   </div>
                 )}
               </div>
@@ -112,10 +115,10 @@ export function FlightCard({ flight }: FlightCardProps) {
               </div>
               <div className="flex items-center space-x-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>{formatDateWithTimezone(flight.arrival.scheduled)}</div>
+                <div>{formatDateWithTimezone(flight.arrival.scheduled, flight.flight_date)}</div>
                 {flight.arrival.actual && flight.arrival.actual !== flight.arrival.scheduled && (
                   <div className="text-sm text-muted-foreground">
-                    (Actual: {formatDateWithTimezone(flight.arrival.actual)})
+                    (Actual: {formatDateWithTimezone(flight.arrival.actual, flight.flight_date)})
                   </div>
                 )}
               </div>
@@ -124,7 +127,7 @@ export function FlightCard({ flight }: FlightCardProps) {
 
           <div className="mt-4 flex items-center text-sm text-muted-foreground">
             <Plane className="h-4 w-4 mr-2" />
-            <span>Duration: {calculateDuration(flight.departure.scheduled, flight.arrival.scheduled)}</span>
+            <span>Duration: {calculateDuration(flight.departure.scheduled, flight.arrival.scheduled, flight.flight_date)}</span>
           </div>
         </div>
       </CardContent>

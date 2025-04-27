@@ -126,7 +126,7 @@ export async function processTrackedFlightsWithAlerts(timeRange?: 'near-term' | 
       // Update last poll time
       lastPollTimes[trackedFlight.id] = now;
       
-      // Determine next poll time based on flight status
+      // Determine next poll time based on flight's time to departure
       const pollingInfo = getOptimalPollingInterval(latestFlightInfo);
       
       // Check if we should stop tracking this flight
@@ -169,8 +169,8 @@ export async function processTrackedFlightsWithAlerts(timeRange?: 'near-term' | 
         // Process alerts for this flight
         await processAlerts(trackedFlight, latestFlightInfo, changes);
         
-        // Changes detected - poll more frequently next time (but respect minimum interval)
-        nextPollTimes[trackedFlight.id] = now + Math.min(pollingInfo.interval * 1000, 15 * 60 * 1000); // Maximum 15 minutes
+        // When changes are detected, we still use the time-based polling interval
+        // from pollingInfo rather than forcing a more frequent poll
       } else {
         console.log(`No changes detected for flight ${trackedFlight.flightNumber}`);
       }

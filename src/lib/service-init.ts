@@ -22,6 +22,11 @@ const IS_BUILD_PROCESS = process.env.NODE_ENV === 'production' && process.env.NE
 
 /**
  * Start the optimized tiered polling service
+ * 
+ * Polling is based solely on the time until departure:
+ * - Near-term flights (< 12 hours): poll every 15 minutes
+ * - Mid-term flights (12-24 hours away): poll every 2 hours 
+ * - Long-term flights (> 24 hours away): poll every 12 hours
  */
 export function startOptimizedPolling(): void {
   if (nearTermPollingEnabled || midTermPollingEnabled || longTermPollingEnabled) {
@@ -33,26 +38,26 @@ export function startOptimizedPolling(): void {
   
   // Near-term flights (within 12 hours) - poll every 15 minutes
   nearTermInterval = setInterval(() => {
-    processTrackedFlightsWithAlerts().catch(error => {
+    processTrackedFlightsWithAlerts('near-term').catch(error => {
       console.error("Error in near-term flight processing:", error);
     });
   }, 15 * 60 * 1000); // 15 minutes
   nearTermPollingEnabled = true;
   
-  // Mid-term flights (12-24 hours away) - poll every hour
+  // Mid-term flights (12-24 hours away) - poll every 2 hours
   midTermInterval = setInterval(() => {
-    processTrackedFlightsWithAlerts().catch(error => {
+    processTrackedFlightsWithAlerts('mid-term').catch(error => {
       console.error("Error in mid-term flight processing:", error);
     });
-  }, 60 * 60 * 1000); // 1 hour
+  }, 2 * 60 * 60 * 1000); // 2 hours (changed from 1 hour)
   midTermPollingEnabled = true;
   
-  // Long-term flights (>24 hours away) - poll every 6 hours
+  // Long-term flights (>24 hours away) - poll every 12 hours
   longTermInterval = setInterval(() => {
-    processTrackedFlightsWithAlerts().catch(error => {
+    processTrackedFlightsWithAlerts('long-term').catch(error => {
       console.error("Error in long-term flight processing:", error);
     });
-  }, 6 * 60 * 60 * 1000); // 6 hours
+  }, 12 * 60 * 60 * 1000); // 12 hours (changed from 6 hours)
   longTermPollingEnabled = true;
   
   // Also process rules on a regular basis

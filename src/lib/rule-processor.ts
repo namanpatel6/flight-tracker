@@ -159,7 +159,7 @@ export async function processRules(): Promise<void> {
             changes,
           };
           
-          // Determine optimal polling interval for this flight
+          // Determine optimal polling interval for this flight based only on time to departure
           const pollingInfo = getOptimalPollingInterval(latestFlightInfo);
           
           // Check if we should stop tracking this flight
@@ -214,9 +214,7 @@ export async function processRules(): Promise<void> {
           }
           
           // If changes were detected, poll more frequently (but respect minimum interval)
-          const adjustedInterval = changes.length > 0 
-            ? Math.min(pollingInfo.interval * 1000, 15 * 60 * 1000) // Max 15 minutes if changes detected 
-            : pollingInfo.interval * 1000;
+          const adjustedInterval = pollingInfo.interval * 1000;
           
           flightNextPollTimes[flight.id] = now + adjustedInterval;
           

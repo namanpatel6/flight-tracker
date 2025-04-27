@@ -35,6 +35,13 @@ export default async function ResultsPage({ searchParams }: SearchPageProps) {
           {hasSearchParams ? (
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">Search Results</h2>
+              <p className="text-muted-foreground mb-4">
+                {params.flight_iata
+                  ? `Showing results for flight ${params.flight_iata}`
+                  : "Showing all matching flights"}
+                {params.flight_date && ` on ${params.flight_date}`}
+              </p>
+              <p className="text-sm text-muted-foreground mb-8">All times shown are in UTC (Coordinated Universal Time)</p>
               <Suspense fallback={<SearchResultsSkeleton />}>
                 <SearchResults searchParams={params} />
               </Suspense>

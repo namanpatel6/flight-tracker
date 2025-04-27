@@ -74,17 +74,20 @@ export function FlightSearchForm() {
         </div>
         
         <div className="space-y-2">
-          <label className="text-sm font-medium">Date</label>
+          <label className="text-sm font-medium">Date (UTC)</label>
           <DatePicker
             value={departureDate}
             onChange={setDepartureDate}
-            placeholder="Select date"
+            placeholder="Select date (UTC)"
             className={errors.departureDate ? "border-red-500" : ""}
             minDate={new Date()}
           />
           {errors.departureDate && (
             <p className="text-xs text-red-500">{errors.departureDate}</p>
           )}
+          <p className="text-xs text-muted-foreground">
+            Times are displayed in UTC. Flight schedules use UTC for international consistency.
+          </p>
         </div>
         
         <Button type="submit" className="w-full">

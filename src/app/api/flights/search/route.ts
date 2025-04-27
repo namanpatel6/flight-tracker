@@ -30,8 +30,23 @@ export async function GET(request: Request) {
     
     // Search for flights using AeroAPI
     console.log("Searching for flights with params:", result.data);
+    
+    // Add extra logging to debug the flight date
+    if (result.data.flight_date) {
+      console.log(`Flight date for search: ${result.data.flight_date}`);
+      
+      // Add the flight date to URL for verification
+      console.log(`Flight search URL: /flights/results?flight_iata=${result.data.flight_iata || ''}&flight_date=${result.data.flight_date}`);
+    }
+    
     let flights = await searchFlights(result.data);
     console.log(`Found ${flights.length} flights in initial search`);
+    
+    // For debugging purposes - log the first flight's data if available
+    if (flights.length > 0) {
+      console.log(`First flight result departure scheduled: ${flights[0].departure.scheduled}`);
+      console.log(`First flight result date from data: ${flights[0].flight_date || 'not set'}`);
+    }
     
     return NextResponse.json({ flights });
   } catch (error: any) {
