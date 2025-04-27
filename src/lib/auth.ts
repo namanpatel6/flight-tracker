@@ -74,6 +74,17 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
+  cookies: {
+    sessionToken: {
+      name: `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
   callbacks: {
     async session({ session, token }) {
       if (token) {
@@ -118,6 +129,8 @@ export const authOptions: NextAuthOptions = {
   },
   debug: process.env.NODE_ENV === "development",
   secret: process.env.NEXTAUTH_SECRET,
+  // Explicitly set the production URL
+  useSecureCookies: process.env.NODE_ENV === 'production',
 };
 
 // Schema for registration validation

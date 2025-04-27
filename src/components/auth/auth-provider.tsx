@@ -13,7 +13,7 @@ interface AuthProviderProps {
  * and implements improved session tracking
  */
 function AutoLogoutHandler() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
@@ -65,6 +65,18 @@ function AutoLogoutHandler() {
       heartbeatRef.current = setInterval(() => {
         // Update last activity timestamp
         localStorage.setItem('lastActivity', Date.now().toString());
+        
+        // Keep session active by fetching it
+        fetch('/api/auth/session', { 
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, max-age=0',
+            'Pragma': 'no-cache'
+          }
+        }).catch(err => {
+          console.error('Session refresh error:', err);
+        });
       }, FIVE_MINUTES);
       
       // Set up visibility change handler to detect tab switching
@@ -96,7 +108,7 @@ function AutoLogoutHandler() {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   return (
-    <SessionProvider refetchInterval={5 * 60}>
+    <SessionProvider refetchInterval={5 * 60} refetchOnWindowFocus={true} refetchWhenOffline={false}>
       <AutoLogoutHandler />
       {children}
     </SessionProvider>
