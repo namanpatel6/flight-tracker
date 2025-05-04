@@ -98,13 +98,12 @@ async function checkAdminAuthorization(request: NextRequest): Promise<boolean> {
   
   // In production, implement proper authentication
   // This is a placeholder for your actual auth logic
-  const authHeader = request.headers.get("Authorization");
+  const qstashToken = request.headers.get("qstashToken");
   const adminKey = process.env.ADMIN_API_KEY;
   
   // Basic bearer token check
-  if (authHeader && adminKey) {
-    const token = authHeader.replace("Bearer ", "");
-    return token === adminKey;
+  if (qstashToken && adminKey) {
+    return qstashToken === adminKey;
   }
   
   return false;
