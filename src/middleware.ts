@@ -17,6 +17,8 @@ export async function middleware(request: NextRequest) {
     path === '/auth/signup' || 
     path === '/api/auth/session' ||
     path.startsWith('/api/auth/') ||
+    path.startsWith('/api/admin/') ||    // Add this line
+  path.startsWith('/api/qstash/') ||   // Add this line
     path.includes('_next') ||  // Next.js assets
     path.includes('favicon.ico');
   
