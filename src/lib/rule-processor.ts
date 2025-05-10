@@ -66,8 +66,8 @@ export async function processRules(): Promise<void> {
         // Get unique tracked flight IDs from alerts instead of conditions
         const trackedFlightIds = [...new Set(
           rule.alerts
-            .filter(a => a.trackedFlightId)
-            .map(a => a.trackedFlightId as string)
+            .filter(a => a.flightId)
+            .map(a => a.flightId as string)
         )];
         
         // Skip if no flights to process
