@@ -16,7 +16,6 @@ const getQStashConfig = async () => {
 export async function POST(request: NextRequest) {
   try {
     // Secure this endpoint - check for admin authentication
-    // In a real implementation, you'd verify the user is an admin
     const isAuthorized = await checkAdminAuthorization(request);
     
     if (!isAuthorized) {
@@ -26,22 +25,42 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Dynamically import and use the QStash config
-    const { scheduleRuleProcessing } = await getQStashConfig();
-    
-    // Schedule all rule processing intervals
-    const success = await scheduleRuleProcessing();
-    
-    if (success) {
-      return NextResponse.json({
-        success: true,
-        message: "QStash schedules successfully configured"
-      });
-    } else {
-      return NextResponse.json(
-        { error: "Failed to configure QStash schedules" },
-        { status: 500 }
-      );
+    try {
+      // Dynamically import and use the QStash config
+      const { scheduleRuleProcessing } = await getQStashConfig();
+      
+      // Schedule all rule processing intervals
+      const success = await scheduleRuleProcessing();
+      
+      if (success) {
+        return NextResponse.json({
+          success: true,
+          message: "QStash schedules successfully configured"
+        });
+      } else {
+        return NextResponse.json(
+          { error: "Failed to configure QStash schedules" },
+          { status: 500 }
+        );
+      }
+    } catch (e) {
+      // Detailed error for crypto-related failures
+      const error = e as Error;
+      console.error("QStash configuration error:", error);
+      
+      if (error.message.includes("crypto") || error.message.includes("SHA224")) {
+        return NextResponse.json(
+          { 
+            error: "Crypto library initialization failed", 
+            details: error.message,
+            stack: error.stack,
+            solution: "Check server-side crypto polyfill implementation"
+          },
+          { status: 500 }
+        );
+      }
+      
+      throw error; // Re-throw for generic error handling
     }
   } catch (error) {
     console.error("Error setting up QStash schedules:", error);

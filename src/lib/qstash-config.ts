@@ -3,11 +3,20 @@
 
 // Ensure crypto is available for Node.js
 // This helps prevent the "Cannot set properties of undefined (setting 'SHA224')" error
-if (typeof globalThis.crypto === 'undefined') {
-  // Only import in server context
-  if (typeof window === 'undefined') {
+if (typeof globalThis.crypto === 'undefined' && typeof window === 'undefined') {
+  try {
+    // For Node.js environments
+    const nodeCrypto = require('crypto');
     // @ts-ignore - Node.js specific handling
-    global.crypto = require('crypto').webcrypto;
+    globalThis.crypto = nodeCrypto.webcrypto || nodeCrypto;
+    
+    // Ensure the crypto.subtle object exists
+    if (!globalThis.crypto.subtle) {
+      // @ts-ignore
+      globalThis.crypto.subtle = {};
+    }
+  } catch (error) {
+    console.error("Failed to polyfill crypto:", error);
   }
 }
 
@@ -21,12 +30,20 @@ export enum PollingInterval {
 
 // Dynamic function to get QStash client
 async function getQStashClient() {
-  // Only import when needed
-  const { Client } = await import("@upstash/qstash");
-  
-  return new Client({
-    token: process.env.QSTASH_TOKEN || "",
-  });
+  try {
+    // Only import when needed
+    const { Client } = await import("@upstash/qstash");
+    
+    const token = process.env.QSTASH_TOKEN;
+    if (!token) {
+      throw new Error("QSTASH_TOKEN environment variable is not set");
+    }
+    
+    return new Client({ token });
+  } catch (error) {
+    console.error("Error initializing QStash client:", error);
+    throw error;
+  }
 }
 
 // Base URL for your application
