@@ -5,14 +5,14 @@ import { Price } from "@/types/flight";
 
 export async function GET(
   request: Request, 
-  { params }: { params: { flightNumber: string; departureDate: string; arrivalDate: string } }
+  { params }: { params: Promise<{ flightNumber: string; departureDate: string; arrivalDate: string }> }
 ) {
   console.log("API Route handler started with URL:", request.url);
   console.log("Raw params object:", JSON.stringify(params));
   
   try {
     // Access params directly - no need to await as they're now correctly typed
-    const { flightNumber, departureDate, arrivalDate } = params;
+    const { flightNumber, departureDate, arrivalDate } = await params;
     
     console.log(`API route received parameters: flightNumber=${flightNumber}, departureDate=${departureDate}, arrivalDate=${arrivalDate}`);
     
