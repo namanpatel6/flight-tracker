@@ -1,5 +1,6 @@
 import { Flight, FlightStatus } from "@/types/flight";
 import { AEROAPI_KEY } from "./env";
+import { db } from "@/lib/db";
 import { date, z } from "zod";
 
 // AeroAPI base URL
@@ -386,17 +387,33 @@ export function getOptimalPollingInterval(flightData: Flight): { interval: numbe
  * Batch fetch multiple flights by flight number
  * to minimize API calls
  * @param flightNumbers Array of flight numbers to fetch
- * @param departureDate Optional departure date for historical flights (ISO format YYYY-MM-DD)
- * @param arrivalDate Optional arrival date for historical flights (ISO format YYYY-MM-DD)
+ * @param defaultDepartureDate Optional default departure date for flights where specific dates can't be found in DB (ISO format YYYY-MM-DD)
+ * @param defaultArrivalDate Optional default arrival date for flights where specific dates can't be found in DB (ISO format YYYY-MM-DD)
  * @returns Map of flight number to flight data
  */
 export async function batchFetchFlights(
   flightNumbers: string[], 
-  departureDate?: string,
-  arrivalDate?: string
+  defaultDepartureDate?: string,
+  defaultArrivalDate?: string
 ): Promise<Record<string, any>> {
   const result: Record<string, any> = {};
-  const searchDate = departureDate || new Date().toISOString().split('T')[0];
+  
+  // First, fetch all flight records from database to get departure and arrival times
+  const dbFlights = await db.flight.findMany({
+    where: {
+      flightNumber: {
+        in: flightNumbers
+      }
+    }
+  });
+  
+  // Create a map of flight numbers to their DB records for quick lookup
+  const flightMap = new Map();
+  dbFlights.forEach(flight => {
+    flightMap.set(flight.flightNumber, flight);
+  });
+  
+  console.log(`Found ${dbFlights.length} flights in database out of ${flightNumbers.length} requested`);
   
   // Process in batches to prevent rate limiting
   const batchSize = 5;
@@ -407,8 +424,42 @@ export async function batchFetchFlights(
     // Process each flight in the batch
     const promises = batch.map(async (flightNumber) => {
       try {
-        // Use getFlightDetails to get enhanced flight data with status
-        const flightDetails = await getFlightDetails(flightNumber, searchDate, arrivalDate);
+        // Get flight info from database
+        const dbFlight = flightMap.get(flightNumber);
+        
+        // Extract departure and arrival dates from database record if available
+        let flightDepartureDate: string | undefined = undefined;
+        let flightArrivalDate: string | undefined = undefined;
+        
+        if (dbFlight && dbFlight.departureTime) {
+          flightDepartureDate = dbFlight.departureTime.toISOString().split('T')[0];
+          console.log(`Using departure date from DB for ${flightNumber}: ${flightDepartureDate}`);
+        }
+        
+        if (dbFlight && dbFlight.arrivalTime) {
+          flightArrivalDate = dbFlight.arrivalTime.toISOString().split('T')[0];
+          console.log(`Using arrival date from DB for ${flightNumber}: ${flightArrivalDate}`);
+        }
+        
+        // Fall back to default dates if not found in database
+        if (!flightDepartureDate) {
+          flightDepartureDate = defaultDepartureDate;
+          console.log(`No DB departure date for ${flightNumber}, using default: ${flightDepartureDate}`);
+        }
+        
+        if (!flightArrivalDate) {
+          // If we have departure date but no arrival date, calculate the next day
+          if (flightDepartureDate) {
+            flightArrivalDate = calculateNextDayFromDateString(flightDepartureDate);
+            console.log(`Calculated arrival date for ${flightNumber} based on departure: ${flightArrivalDate}`);
+          } else {
+            flightArrivalDate = defaultArrivalDate;
+            console.log(`No DB arrival date for ${flightNumber}, using default: ${flightArrivalDate}`);
+          }
+        }
+        
+        // Get detailed flight data with the dates from DB
+        const flightDetails = await getFlightDetails(flightNumber, flightDepartureDate, flightArrivalDate);
         
         if (flightDetails) {
           result[flightNumber] = flightDetails;
