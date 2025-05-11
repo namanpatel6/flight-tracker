@@ -219,7 +219,22 @@ export function CreateRuleButton() {
     const newErrors: Record<string, string> = {};
     
     if (!flightNumberInput.trim()) {
-      newErrors.search = "Please provide a flight number to search";
+      newErrors.flightNumber = "Flight number is required";
+    }
+    
+    const originAirport = flightSearchForm.getValues().dep_iata;
+    if (!originAirport || !originAirport.trim()) {
+      newErrors.dep_iata = "Origin airport is required";
+    }
+    
+    const destinationAirport = flightSearchForm.getValues().arr_iata;
+    if (!destinationAirport || !destinationAirport.trim()) {
+      newErrors.arr_iata = "Destination airport is required";
+    }
+    
+    const date = flightSearchForm.getValues().flight_date;
+    if (!date) {
+      newErrors.flight_date = "Date is required";
     }
     
     setErrors(newErrors);
@@ -627,8 +642,41 @@ export function CreateRuleButton() {
                         placeholder="e.g. BA123" 
                         value={flightNumberInput}
                         onChange={(e) => setFlightNumberInput(e.target.value)}
-                        className={errors.search ? "border-red-500" : ""}
+                        className={errors.flightNumber ? "border-red-500" : ""}
                       />
+                      {errors.flightNumber && (
+                        <p className="text-xs text-red-500">{errors.flightNumber}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Origin Airport</label>
+                      <Input
+                        value={flightSearchForm.getValues().dep_iata || ''}
+                        onChange={(e) => flightSearchForm.setValue('dep_iata', e.target.value.toUpperCase())}
+                        placeholder="e.g. DFW"
+                        className={errors.dep_iata ? "border-red-500" : ""}
+                        maxLength={3}
+                      />
+                      {errors.dep_iata && (
+                        <p className="text-xs text-red-500">{errors.dep_iata}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Destination Airport</label>
+                      <Input
+                        value={flightSearchForm.getValues().arr_iata || ''}
+                        onChange={(e) => flightSearchForm.setValue('arr_iata', e.target.value.toUpperCase())}
+                        placeholder="e.g. JFK"
+                        className={errors.arr_iata ? "border-red-500" : ""}
+                        maxLength={3}
+                      />
+                      {errors.arr_iata && (
+                        <p className="text-xs text-red-500">{errors.arr_iata}</p>
+                      )}
                     </div>
                   </div>
                   
@@ -638,15 +686,15 @@ export function CreateRuleButton() {
                       value={flightSearchForm.getValues().flight_date}
                       onChange={(date) => date && flightSearchForm.setValue('flight_date', date)}
                       placeholder="Select date (UTC)"
+                      className={errors.flight_date ? "border-red-500" : ""}
                     />
+                    {errors.flight_date && (
+                      <p className="text-xs text-red-500">{errors.flight_date}</p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       Times are displayed in UTC. Flight schedules use UTC for international consistency.
                     </p>
                   </div>
-                  
-                  {errors.search && (
-                    <p className="text-xs text-red-500">{errors.search}</p>
-                  )}
                   
                   <div className="text-sm text-muted-foreground mt-2">
                     <p>Note: You can only select one flight per rule.</p>
