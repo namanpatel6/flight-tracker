@@ -15,6 +15,8 @@ export function FlightSearchForm() {
   
   // State for form values
   const [flightNumber, setFlightNumber] = useState("");
+  const [originAirport, setOriginAirport] = useState("");
+  const [destinationAirport, setDestinationAirport] = useState("");
   const [departureDate, setDepartureDate] = useState<Date | undefined>(undefined);
   
   // State for errors
@@ -33,6 +35,12 @@ export function FlightSearchForm() {
     
     if (!flightNumber.trim()) {
       newErrors.flightNumber = "Flight number is required";
+    }
+    if (!originAirport.trim()) {
+      newErrors.originAirport = "Origin airport is required";
+    }
+    if (!destinationAirport.trim()) {
+      newErrors.destinationAirport = "Destination airport is required";
     }
     if (!departureDate) {
       newErrors.departureDate = "Date is required";
@@ -60,6 +68,8 @@ export function FlightSearchForm() {
     const params = new URLSearchParams();
     
     params.append("flight_iata", flightNumber);
+    params.append("dep_iata", originAirport);
+    params.append("arr_iata", destinationAirport);
     if (departureDate) {
       params.append("flight_date", departureDate.toISOString().split("T")[0]);
     }
@@ -104,6 +114,36 @@ export function FlightSearchForm() {
           {errors.flightNumber && (
             <p className="text-xs text-red-500">{errors.flightNumber}</p>
           )}
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Origin Airport</label>
+            <Input
+              value={originAirport}
+              onChange={(e) => setOriginAirport(e.target.value.toUpperCase())}
+              placeholder="e.g. DFW"
+              className={errors.originAirport ? "border-red-500" : ""}
+              maxLength={3}
+            />
+            {errors.originAirport && (
+              <p className="text-xs text-red-500">{errors.originAirport}</p>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Destination Airport</label>
+            <Input
+              value={destinationAirport}
+              onChange={(e) => setDestinationAirport(e.target.value.toUpperCase())}
+              placeholder="e.g. JFK"
+              className={errors.destinationAirport ? "border-red-500" : ""}
+              maxLength={3}
+            />
+            {errors.destinationAirport && (
+              <p className="text-xs text-red-500">{errors.destinationAirport}</p>
+            )}
+          </div>
         </div>
         
         <div className="space-y-2">

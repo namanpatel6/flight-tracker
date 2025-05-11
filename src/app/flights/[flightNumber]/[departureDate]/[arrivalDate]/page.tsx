@@ -10,6 +10,10 @@ interface FlightDetailsPageProps {
     departureDate: string;
     arrivalDate: string;
   }>;
+  searchParams?: {
+    dep_iata?: string;
+    arr_iata?: string;
+  };
 }
 
 export const metadata = {
@@ -17,11 +21,19 @@ export const metadata = {
   description: "Track and view detailed information about a specific flight.",
 };
 
-export default async function FlightDetailsPage({ params }: FlightDetailsPageProps) {
+export default async function FlightDetailsPage({ params, searchParams }: FlightDetailsPageProps) {
   // Await params before accessing properties
   const { flightNumber, departureDate, arrivalDate } = await params;
   
   console.log(`Flight details page params: flightNumber=${flightNumber}, departureDate=${departureDate}, arrivalDate=${arrivalDate}`);
+
+  const querySearchParams = await searchParams;
+  
+  // Get airport codes from search params if available
+  const departureAirport = querySearchParams?.dep_iata || '';
+  const arrivalAirport = querySearchParams?.arr_iata || '';
+  
+  console.log(`Airport codes: departureAirport=${departureAirport}, arrivalAirport=${arrivalAirport}`);
   
   // Validate parameters
   if (!flightNumber || !departureDate || !arrivalDate) {
@@ -36,19 +48,28 @@ export default async function FlightDetailsPage({ params }: FlightDetailsPagePro
     const safeArrivalDate = encodeURIComponent(arrivalDate);
 
     console.log(`Flight details page params: ${flightNumber}, ${departureDate}, ${arrivalDate}`);
-      // For server components, use an absolute URL for fetch
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      
-      const apiUrl = new URL(`/api/flights/${safeFlightNumber}/${safeDepartureDate}/${safeArrivalDate}`, baseUrl).toString();
+    // For server components, use an absolute URL for fetch
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
+    const apiUrl = new URL(`/api/flights/${safeFlightNumber}/${safeDepartureDate}/${safeArrivalDate}`, baseUrl);
+    
+    // Add airport codes as query parameters
+    if (departureAirport) {
+      apiUrl.searchParams.append("dep_iata", departureAirport);
+    }
+    
+    if (arrivalAirport) {
+      apiUrl.searchParams.append("arr_iata", arrivalAirport);
+    }
   
-    console.log(`Fetching flight details from API path: ${apiUrl}`);
+    console.log(`Fetching flight details from API path: ${apiUrl.toString()}`);
     
     // Add cache-busting parameter
     const timestamp = Date.now();
-    const urlWithCacheBuster = `${apiUrl}?_=${timestamp}`;
+    apiUrl.searchParams.append("_", timestamp.toString());
     
     // Make the fetch request with no auth requirements
-    const flightResponse = await fetch(urlWithCacheBuster, {
+    const flightResponse = await fetch(apiUrl.toString(), {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

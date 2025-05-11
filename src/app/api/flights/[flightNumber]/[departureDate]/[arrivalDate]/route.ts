@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ flightNumber: string; departureDate: string; arrivalDate: string }> }
 ) {
   console.log("API Route handler started with URL:", request.url);
-  console.log("Raw params object:", JSON.stringify(params));
+  console.log("Raw params object:", JSON.stringify(await params));
   
   try {
     // Access params directly - no need to await as they're now correctly typed
@@ -35,8 +35,16 @@ export async function GET(
     
     console.log(`Fetching flight details for: ${flightNumber}, departure: ${departureDate}, arrival: ${arrivalDate}`);
     
-    // Check if there's a price in the URL query params
+    // Check URL query params
     const url = new URL(request.url);
+    
+    // Extract departure and arrival airport codes from URL query params
+    const departureAirport = url.searchParams.get('dep_iata') || '';
+    const arrivalAirport = url.searchParams.get('arr_iata') || '';
+    
+    console.log(`Airport codes from query params: dep_iata=${departureAirport}, arr_iata=${arrivalAirport}`);
+    
+    // Check if there's a price in the URL query params
     const priceParam = url.searchParams.get('price');
     let priceFromUrl: Price | null = null;
     
@@ -48,9 +56,9 @@ export async function GET(
       }
     }
     
-    // Get flight details using AeroAPI with both dates
-    console.log(`Calling getFlightDetails with: ${flightNumber}, ${departureDate}, ${arrivalDate}`);
-    const flight = await getFlightDetails(flightNumber, departureDate, arrivalDate);
+    // Get flight details using AeroAPI with both dates and airport codes
+    console.log(`Calling getFlightDetails with: ${flightNumber}, ${departureDate}, ${arrivalDate}, ${departureAirport}, ${arrivalAirport}`);
+    const flight = await getFlightDetails(flightNumber, departureDate, arrivalDate, departureAirport, arrivalAirport);
     
     if (!flight) {
       console.warn(`API route error: Flight not found for ${flightNumber}, ${departureDate}, ${arrivalDate}`);

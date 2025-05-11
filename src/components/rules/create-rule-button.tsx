@@ -88,8 +88,10 @@ const basicInfoSchema = z.object({
 
 // Flight search schema
 const flightSearchSchema = z.object({
-  flightNumber: z.string().optional(),
-  departureDate: z.date({ required_error: "Departure date is required" })
+  flight_iata: z.string().optional(),
+  dep_iata: z.string().optional(),
+  arr_iata: z.string().optional(),
+  flight_date: z.date({ required_error: "Departure date is required" })
 });
 
 // Selected flight schema
@@ -183,8 +185,10 @@ export function CreateRuleButton() {
   const flightSearchForm = useForm<z.infer<typeof flightSearchSchema>>({
     resolver: zodResolver(flightSearchSchema),
     defaultValues: {
-      flightNumber: '',
-      departureDate: new Date()
+      flight_iata: '',
+      dep_iata: '',
+      arr_iata: '',
+      flight_date: new Date()
     },
   });
 
@@ -238,8 +242,20 @@ export function CreateRuleButton() {
         params.append('flight_iata', flightNumberInput.trim());
       }
       
+      // Add origin airport if available
+      const originAirport = flightSearchForm.getValues().dep_iata;
+      if (originAirport) {
+        params.append('dep_iata', originAirport);
+      }
+      
+      // Add destination airport if available
+      const destinationAirport = flightSearchForm.getValues().arr_iata;
+      if (destinationAirport) {
+        params.append('arr_iata', destinationAirport);
+      }
+      
       // Add departure date
-      const departureDate = flightSearchForm.getValues().departureDate;
+      const departureDate = flightSearchForm.getValues().flight_date;
       if (departureDate) {
         params.append('flight_date', departureDate.toISOString().split('T')[0]);
       }
@@ -619,8 +635,8 @@ export function CreateRuleButton() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Date (UTC)</label>
                     <DatePicker
-                      value={flightSearchForm.getValues().departureDate}
-                      onChange={(date) => date && flightSearchForm.setValue('departureDate', date)}
+                      value={flightSearchForm.getValues().flight_date}
+                      onChange={(date) => date && flightSearchForm.setValue('flight_date', date)}
                       placeholder="Select date (UTC)"
                     />
                     <p className="text-xs text-muted-foreground">

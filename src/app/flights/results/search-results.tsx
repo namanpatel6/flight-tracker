@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 interface SearchParamsType {
   flight_iata?: string;
   airline_iata?: string;
+  dep_iata?: string;
+  arr_iata?: string;
   flight_date?: string;
 }
 
@@ -68,6 +70,8 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
         const hasSearchParams = !!(
           resolvedParams.flight_iata || 
           resolvedParams.airline_iata || 
+          resolvedParams.dep_iata ||
+          resolvedParams.arr_iata ||
           resolvedParams.flight_date
         );
         
@@ -87,6 +91,14 @@ export function SearchResults({ searchParams }: SearchResultsProps) {
         
         if (resolvedParams.airline_iata) {
           queryParams.append("airline_iata", resolvedParams.airline_iata);
+        }
+        
+        if (resolvedParams.dep_iata) {
+          queryParams.append("dep_iata", resolvedParams.dep_iata);
+        }
+        
+        if (resolvedParams.arr_iata) {
+          queryParams.append("arr_iata", resolvedParams.arr_iata);
         }
         
         if (resolvedParams.flight_date) {

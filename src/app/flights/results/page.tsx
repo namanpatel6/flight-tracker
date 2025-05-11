@@ -7,6 +7,8 @@ interface SearchPageProps {
   searchParams: Promise<{
     flight_iata?: string;
     airline_iata?: string;
+    dep_iata?: string;
+    arr_iata?: string; 
     flight_date?: string;
   }>;
 }
@@ -19,6 +21,8 @@ export default async function ResultsPage({ searchParams }: SearchPageProps) {
   const hasSearchParams = !!(
     params.flight_iata || 
     params.airline_iata || 
+    params.dep_iata ||
+    params.arr_iata ||
     params.flight_date
   );
 
@@ -39,6 +43,7 @@ export default async function ResultsPage({ searchParams }: SearchPageProps) {
                 {params.flight_iata
                   ? `Showing results for flight ${params.flight_iata}`
                   : "Showing all matching flights"}
+                {params.dep_iata && params.arr_iata && ` from ${params.dep_iata} to ${params.arr_iata}`}
                 {params.flight_date && ` on ${params.flight_date}`}
               </p>
               <p className="text-sm text-muted-foreground mb-8">All times shown are in UTC (Coordinated Universal Time)</p>
@@ -50,7 +55,7 @@ export default async function ResultsPage({ searchParams }: SearchPageProps) {
             <div className="bg-white p-6 rounded-lg shadow-md text-center">
               <h2 className="text-xl font-semibold mb-2">No Search Criteria</h2>
               <p className="text-gray-600">
-                Use the search form to find flights by flight number.
+                Use the search form to find flights by flight number and route.
               </p>
             </div>
           )}

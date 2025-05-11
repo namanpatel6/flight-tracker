@@ -133,7 +133,13 @@ export function FlightCard({ flight }: FlightCardProps) {
       </CardContent>
       <CardFooter className="bg-muted/50 p-4 flex justify-end">
         <Link 
-          href={`/flights/${encodeURIComponent(flight.flight.iata || flight.flight.icao || '')}/${encodeURIComponent(departureDate)}/${encodeURIComponent(arrivalDate)}`} 
+          href={{
+            pathname: `/flights/${encodeURIComponent(flight.flight.iata || flight.flight.icao || '')}/${encodeURIComponent(departureDate)}/${encodeURIComponent(arrivalDate)}`,
+            query: {
+              dep_iata: flight.departure.iata,
+              arr_iata: flight.arrival.iata
+            }
+          }}
           passHref
         >
           <Button variant="secondary">View Details</Button>
