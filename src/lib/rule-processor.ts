@@ -356,7 +356,7 @@ function generateRuleNotificationMessage(rule: Rule, alert: Alert, flight: any):
  * Updates flight data in the database
  */
 async function updateFlightData(flightId: string, flightInfo: Flight): Promise<void> {
-  await db.trackedFlight.update({
+  await db.flight.update({
     where: { id: flightId },
     data: {
       status: flightInfo.flight_status,
