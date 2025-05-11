@@ -97,7 +97,7 @@ function calculateNextDayFromDateString(dateString: string): string {
   date.setUTCDate(date.getUTCDate() + 1);
   
   // Format the date back to YYYY-MM-DD
-  return date.toISOString().split('T')[0];
+  return date.toISOString();
 }
 
 // Flight search schema for validation
@@ -432,12 +432,12 @@ export async function batchFetchFlights(
         let flightArrivalDate: string | undefined = undefined;
         
         if (dbFlight && dbFlight.departureTime) {
-          flightDepartureDate = dbFlight.departureTime.toISOString().split('T')[0];
+          flightDepartureDate = dbFlight.departureTime.toISOString();
           console.log(`Using departure date from DB for ${flightNumber}: ${flightDepartureDate}`);
         }
         
         if (dbFlight && dbFlight.arrivalTime) {
-          flightArrivalDate = dbFlight.arrivalTime.toISOString().split('T')[0];
+          flightArrivalDate = dbFlight.arrivalTime.toISOString();
           console.log(`Using arrival date from DB for ${flightNumber}: ${flightArrivalDate}`);
         }
         
@@ -708,7 +708,7 @@ export async function getFlightDetails(flightNumber: string, departureDate?: str
     }
     
     // Use the searchFlights function with the extracted flight number and airline code
-    const searchDate = departureDate || new Date().toISOString().split('T')[0];
+    const searchDate = departureDate?.split('T')[0] || new Date().toISOString().split('T')[0];
     const flights = await searchFlights({
       flight_iata: flightNumber, // Pass the full flight number to leverage exact matching in searchFlights
       flight_date: searchDate

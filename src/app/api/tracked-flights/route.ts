@@ -97,38 +97,6 @@ export async function GET() {
       }
     }
     
-    // STEP 2: Fallback - Get all tracked flights for the user if no rule-based flights
-    if (flightsMap.size === 0) {
-      console.log("No flights found in rules, fetching all tracked flights...");
-      
-      const trackedFlights = await db.trackedFlight.findMany({
-        where: {
-          userId: userId,
-        },
-        include: {
-          alerts: true
-        }
-      });
-      
-      console.log(`Found ${trackedFlights.length} tracked flights`);
-      
-      // Convert tracked flights to the expected format
-      for (const flight of trackedFlights) {
-        flightsMap.set(flight.id, {
-          id: flight.id,
-          flightNumber: flight.flightNumber,
-          departureAirport: flight.departureAirport,
-          arrivalAirport: flight.arrivalAirport,
-          departureTime: flight.departureTime,
-          arrivalTime: flight.arrivalTime,
-          status: flight.status,
-          price: flight.price,
-          alerts: flight.alerts,
-          activeRules: []
-        });
-      }
-    }
-    
     // Convert to array and return
     const flights = Array.from(flightsMap.values());
     console.log(`Returning ${flights.length} flights with their associated rules and alerts`);
