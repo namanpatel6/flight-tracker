@@ -10,10 +10,10 @@ interface FlightDetailsPageProps {
     departureDate: string;
     arrivalDate: string;
   }>;
-  searchParams?: {
+  searchParams?: Promise<{
     dep_iata?: string;
     arr_iata?: string;
-  };
+  }>;
 }
 
 export const metadata = {
