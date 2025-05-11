@@ -622,7 +622,6 @@ export function CreateRuleButton() {
                       value={flightSearchForm.getValues().departureDate}
                       onChange={(date) => date && flightSearchForm.setValue('departureDate', date)}
                       placeholder="Select date (UTC)"
-                      minDate={new Date()}
                     />
                     <p className="text-xs text-muted-foreground">
                       Times are displayed in UTC. Flight schedules use UTC for international consistency.

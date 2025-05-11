@@ -113,7 +113,6 @@ export function FlightSearchForm() {
             onChange={setDepartureDate}
             placeholder="Select date (UTC)"
             className={errors.departureDate ? "border-red-500" : ""}
-            minDate={new Date()}
           />
           {errors.departureDate && (
             <p className="text-xs text-red-500">{errors.departureDate}</p>
