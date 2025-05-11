@@ -2,30 +2,22 @@ import { NextResponse } from "next/server";
 import { getFlightDetails } from "@/lib/aero-api";
 import { searchFlightPrice } from "@/lib/flight-price-api";
 import { Price } from "@/types/flight";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 
 export async function GET(
   request: Request, 
-  { params }: { params: Promise<{ flightNumber: string; departureDate: string; arrivalDate: string }> }
+  { params }: { params: { flightNumber: string; departureDate: string; arrivalDate: string } }
 ) {
+  console.log("API Route handler started with URL:", request.url);
+  console.log("Raw params object:", JSON.stringify(params));
+  
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { message: "Unauthorized - Please sign in to view flight details" },
-        { status: 401 }
-      );
-    }
-    
-    // Properly await params before accessing properties
-    const { flightNumber, departureDate, arrivalDate } = await params;
+    // Access params directly - no need to await as they're now correctly typed
+    const { flightNumber, departureDate, arrivalDate } = params;
     
     console.log(`API route received parameters: flightNumber=${flightNumber}, departureDate=${departureDate}, arrivalDate=${arrivalDate}`);
     
-    if (!flightNumber) {
+    // Validate parameters
+    if (!flightNumber || flightNumber === 'undefined') {
       console.warn("API route error: Flight number is required");
       return NextResponse.json(
         { message: "Flight number is required" },
@@ -33,7 +25,7 @@ export async function GET(
       );
     }
     
-    if (!departureDate || !arrivalDate) {
+    if (!departureDate || !arrivalDate || departureDate === 'undefined' || arrivalDate === 'undefined') {
       console.warn("API route error: Departure date and arrival date are required");
       return NextResponse.json(
         { message: "Departure date and arrival date are required" },
@@ -61,7 +53,7 @@ export async function GET(
     const flight = await getFlightDetails(flightNumber, departureDate, arrivalDate);
     
     if (!flight) {
-      console.warn("API route error: Flight not found");
+      console.warn(`API route error: Flight not found for ${flightNumber}, ${departureDate}, ${arrivalDate}`);
       return NextResponse.json(
         { message: "Flight not found" },
         { status: 404 }
@@ -97,9 +89,11 @@ export async function GET(
       }
     }
     
-    return NextResponse.json({ flight });
+    const response = { flight };
+    console.log("Sending successful response with flight data");
+    return NextResponse.json(response);
   } catch (error: any) {
-    console.error("Flight details error:", error);
+    console.error("Flight details API error:", error);
     
     return NextResponse.json(
       { message: error.message || "Something went wrong" },

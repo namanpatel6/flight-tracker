@@ -79,7 +79,7 @@ export async function processRules(): Promise<void> {
         console.log(`Rule ${rule.name} references ${trackedFlightIds.length} flights`);
         
         // Get all tracked flights at once to avoid multiple DB queries
-        const trackedFlights = await withRetry(() => db.trackedFlight.findMany({
+        const trackedFlights = await withRetry(() => db.flight.findMany({
           where: {
             id: {
               in: trackedFlightIds
@@ -169,41 +169,53 @@ export async function processRules(): Promise<void> {
             // Create notification message
             const notificationMessage = `Tracking for ${flight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`;
             
-            // Create a notification to inform the user that tracking has stopped
-            await db.notification.create({
-              data: {
-                title: `Flight Tracking Ended`,
-                message: notificationMessage,
-                type: "INFO",
-                userId: flight.userId,
-                flightId: flight.id
+            // Find the trackedFlight to get userId
+            const trackedFlight = await db.trackedFlight.findFirst({
+              where: {
+                flightNumber: flight.flightNumber,
+              },
+              select: {
+                userId: true
               }
             });
             
-            // Fetch user information to send email notification
-            const user = await db.user.findUnique({
-              where: { id: flight.userId }
-            });
-            
-            // Send email notification if user has email
-            if (user?.email) {
-              // Create email content
-              const emailData = createFlightAlertEmail({
-                userName: user.name || '',
-                flightNumber: flight.flightNumber,
-                alertType: 'INFO',
-                message: notificationMessage,
+            if (trackedFlight) {
+              // Create a notification to inform the user that tracking has stopped
+              await db.notification.create({
+                data: {
+                  title: `Flight Tracking Ended`,
+                  message: notificationMessage,
+                  type: "INFO",
+                  userId: trackedFlight.userId,
+                  flightId: flight.id
+                }
               });
               
-              // Send the email
-              await sendNotificationEmail({
-                to: user.email,
-                subject: emailData.subject,
-                html: emailData.html,
-                text: emailData.text,
+              // Fetch user information to send email notification
+              const user = await db.user.findUnique({
+                where: { id: trackedFlight.userId }
               });
               
-              console.log(`Flight tracking ended email sent to ${user.email} for flight ${flight.flightNumber}`);
+              // Send email notification if user has email
+              if (user?.email) {
+                // Create email content
+                const emailData = createFlightAlertEmail({
+                  userName: user.name || '',
+                  flightNumber: flight.flightNumber,
+                  alertType: 'INFO',
+                  message: notificationMessage,
+                });
+                
+                // Send the email
+                await sendNotificationEmail({
+                  to: user.email,
+                  subject: emailData.subject,
+                  html: emailData.html,
+                  text: emailData.text,
+                });
+                
+                console.log(`Flight tracking ended email sent to ${user.email} for flight ${flight.flightNumber}`);
+              }
             }
             
             // Clean up tracking maps

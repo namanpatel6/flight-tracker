@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { batchFetchFlights, getOptimalPollingInterval } from "./aero-api";
 import { Flight } from "@/types/flight";
-import { Alert, TrackedFlight, User } from "@prisma/client";
+import { Alert, Flight as TrackedFlight, User } from "@prisma/client";
 import { sendNotificationEmail, createFlightAlertEmail } from './notifications';
 
 // Track last poll times to implement adaptive polling
@@ -83,7 +83,7 @@ export async function processTrackedFlightsWithAlerts(timeRange?: 'near-term' | 
   }
   
   // Get tracked flights
-  const trackedFlights = await db.trackedFlight.findMany(baseQuery);
+  const trackedFlights = await db.flight.findMany(baseQuery);
   
   // Filter flights based on optimal polling schedules
   const flightsToProcess = trackedFlights.filter((flight: any) => {
@@ -135,17 +135,29 @@ export async function processTrackedFlightsWithAlerts(timeRange?: 'near-term' | 
         
         // Final update to the flight data before we stop tracking
         await updateFlightData(trackedFlight.id, latestFlightInfo);
+
+        // Find the trackedFlight to get userId
+        const trackedFlightWithUserInfo = await db.trackedFlight.findFirst({
+          where: {
+            flightNumber: trackedFlight.flightNumber,
+          },
+          select: {
+            userId: true
+          }
+        });
         
-        // Create a notification to inform the user that tracking has stopped
+       if(trackedFlightWithUserInfo) {
+          // Create a notification to inform the user that tracking has stopped
         await db.notification.create({
           data: {
             title: `Flight Tracking Ended`,
             message: `Tracking for ${trackedFlight.flightNumber} has ended automatically as the flight has ${latestFlightInfo.flight_status}.`,
             type: "INFO",
-            userId: trackedFlight.userId,
+            userId: trackedFlightWithUserInfo.userId,
             flightId: trackedFlight.id
           }
         });
+       }
         
         // Clean up tracking maps
         delete lastPollTimes[trackedFlight.id];

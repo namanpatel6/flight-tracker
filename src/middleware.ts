@@ -17,8 +17,10 @@ export async function middleware(request: NextRequest) {
     path === '/auth/signup' || 
     path === '/api/auth/session' ||
     path.startsWith('/api/auth/') ||
-    path.startsWith('/api/admin/') ||    // Add this line
-    path.startsWith('/api/qstash/') ||   // Add this line
+    path.startsWith('/api/admin/') ||    
+    path.startsWith('/api/qstash/') ||
+    path.startsWith('/api/flights/') ||  // Allow public access to flight API routes
+    path.startsWith('/flights/') ||      // Allow public access to flight pages
     path.includes('_next') ||  // Next.js assets
     path.includes('favicon.ico');
   
@@ -32,6 +34,14 @@ export async function middleware(request: NextRequest) {
 
   const isAuthenticated = !!token;
   
+  // Allow authenticated users to access all routes
+  if (isAuthenticated) {
+    const response = NextResponse.next();
+    // Add cache control headers to prevent caching issues
+    response.headers.set('Cache-Control', 'no-store, max-age=0');
+    return response;
+  }
+  
   // Add debugging response header in development
   if (process.env.NODE_ENV === 'development') {
     const response = NextResponse.next();
@@ -43,7 +53,7 @@ export async function middleware(request: NextRequest) {
   }
   
   // Redirect logic for protected routes
-  if (!isPublicPath && !isAuthenticated) {
+  if (!isPublicPath) {
     // Store the original URL to redirect back after login
     const url = new URL('/auth/signin', request.url);
     url.searchParams.set('callbackUrl', encodeURI(request.url));
@@ -64,13 +74,9 @@ export async function middleware(request: NextRequest) {
   
   // Add response headers to prevent caching of authenticated pages
   // This helps prevent session-related issues when using the back button
-  if (!isPublicPath || isAuthenticated) {
-    const response = NextResponse.next();
-    response.headers.set('Cache-Control', 'no-store, max-age=0');
-    return response;
-  }
-
-  return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set('Cache-Control', 'no-store, max-age=0');
+  return response;
 }
 
 // Configure which paths this middleware will run on

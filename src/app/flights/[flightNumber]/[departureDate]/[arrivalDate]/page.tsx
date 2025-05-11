@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { FlightDetails } from "./flight-details";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Flight } from "@prisma/client";
 
 interface FlightDetailsPageProps {
   params: Promise<{
@@ -20,38 +21,55 @@ export default async function FlightDetailsPage({ params }: FlightDetailsPagePro
   // Await params before accessing properties
   const { flightNumber, departureDate, arrivalDate } = await params;
   
-  console.log(`Flight details page params: ${flightNumber}, ${departureDate}, ${arrivalDate}`);
+  console.log(`Flight details page params: flightNumber=${flightNumber}, departureDate=${departureDate}, arrivalDate=${arrivalDate}`);
   
+  // Validate parameters
+  if (!flightNumber || !departureDate || !arrivalDate) {
+    console.error(`Missing required parameters: flightNumber=${flightNumber}, departureDate=${departureDate}, arrivalDate=${arrivalDate}`);
+    notFound();
+  }
+
   try {
-    // For server components, use an absolute URL for fetch
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    // Construct API URL with path segments
+    const safeFlightNumber = encodeURIComponent(flightNumber);
+    const safeDepartureDate = encodeURIComponent(departureDate);
+    const safeArrivalDate = encodeURIComponent(arrivalDate);
+
+    console.log(`Flight details page params: ${flightNumber}, ${departureDate}, ${arrivalDate}`);
+      // For server components, use an absolute URL for fetch
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      
+      const apiUrl = new URL(`/api/flights/${safeFlightNumber}/${safeDepartureDate}/${safeArrivalDate}`, baseUrl).toString();
+  
+    console.log(`Fetching flight details from API path: ${apiUrl}`);
     
-    const apiUrl = new URL(`/api/flights/${encodeURIComponent(flightNumber)}/${encodeURIComponent(departureDate)}/${encodeURIComponent(arrivalDate)}`, baseUrl).toString();
+    // Add cache-busting parameter
+    const timestamp = Date.now();
+    const urlWithCacheBuster = `${apiUrl}?_=${timestamp}`;
     
-    console.log(`Fetching flight details from API URL: ${apiUrl}`);
-    
-    const flightResponse = await fetch(apiUrl, {
+    // Make the fetch request with no auth requirements
+    const flightResponse = await fetch(urlWithCacheBuster, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 }, // Revalidate data every 60 seconds
+      cache: 'no-store',
     });
     
     console.log(`API response status: ${flightResponse.status} ${flightResponse.statusText}`);
     
     if (!flightResponse.ok) {
-      console.error(`Failed to fetch flight details: ${flightResponse.statusText}`);
+      throw new Error(`API request failed with status ${flightResponse.status}`);
+    }
+    
+    const responseData = await flightResponse.json();
+    
+    if (!responseData.flight) {
+      console.error("No flight data in API response");
       notFound();
     }
     
-    const { flight } = await flightResponse.json();
-    
-    if (!flight) {
-      notFound();
-    }
+    const { flight } = responseData;
     
     return (
       <div className="container mx-auto py-10">
