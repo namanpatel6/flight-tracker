@@ -169,6 +169,8 @@ export function CreateRuleButton() {
   const [recommendedAlertTypes, setRecommendedAlertTypes] = useState<string[]>([]);
   const [selectedAlertTypes, setSelectedAlertTypes] = useState<string[]>([]);
   const [flightNumberInput, setFlightNumberInput] = useState("");
+  const [departureAirportInput, setDepartureAirportInput] = useState("");
+  const [arrivalAirportInput, setArrivalAirportInput] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<Flight[]>([]);
   const [selectedFlights, setSelectedFlights] = useState<SelectedFlight[]>([]);
@@ -654,8 +656,8 @@ export function CreateRuleButton() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Origin Airport</label>
                       <Input
-                        value={flightSearchForm.getValues().dep_iata || ''}
-                        onChange={(e) => flightSearchForm.setValue('dep_iata', e.target.value.toUpperCase())}
+                        value={departureAirportInput}
+                        onChange={(e) => setDepartureAirportInput(e.target.value.toUpperCase())}
                         placeholder="e.g. DFW"
                         className={errors.dep_iata ? "border-red-500" : ""}
                         maxLength={3}
@@ -668,8 +670,8 @@ export function CreateRuleButton() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Destination Airport</label>
                       <Input
-                        value={flightSearchForm.getValues().arr_iata || ''}
-                        onChange={(e) => flightSearchForm.setValue('arr_iata', e.target.value.toUpperCase())}
+                        value={arrivalAirportInput}
+                        onChange={(e) => setArrivalAirportInput(e.target.value.toUpperCase())}
                         placeholder="e.g. JFK"
                         className={errors.arr_iata ? "border-red-500" : ""}
                         maxLength={3}
