@@ -372,8 +372,8 @@ async function updateFlightData(flightId: string, flightInfo: Flight): Promise<v
     where: { id: flightId },
     data: {
       status: flightInfo.flight_status,
-      departureTime: flightInfo.departure.scheduled ? new Date(flightInfo.departure.scheduled) : undefined,
-      arrivalTime: flightInfo.arrival.scheduled ? new Date(flightInfo.arrival.scheduled) : undefined,
+      departureTime: flightInfo.departure.actual ? new Date(flightInfo.departure.actual) : (flightInfo.departure.scheduled ? new Date(flightInfo.departure.scheduled) : undefined),
+      arrivalTime: flightInfo.arrival.actual ? new Date(flightInfo.arrival.actual) : (flightInfo.arrival.scheduled ? new Date(flightInfo.arrival.scheduled) : undefined),
       gate: flightInfo.departure.gate || undefined,
       terminal: flightInfo.departure.terminal || undefined,
     },
