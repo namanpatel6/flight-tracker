@@ -97,7 +97,7 @@ function calculateNextDayFromDateString(dateString: string): string {
   date.setUTCDate(date.getUTCDate() + 1);
   
   // Format the date back to YYYY-MM-DD
-  return date.toISOString();
+  return `${date.toISOString().split('T')[0]}T23:59:59`;
 }
 
 // Flight search schema for validation
