@@ -224,13 +224,11 @@ export function CreateRuleButton() {
       newErrors.flightNumber = "Flight number is required";
     }
     
-    const originAirport = flightSearchForm.getValues().dep_iata;
-    if (!originAirport || !originAirport.trim()) {
+    if (!departureAirportInput || !departureAirportInput.trim()) {
       newErrors.dep_iata = "Origin airport is required";
     }
     
-    const destinationAirport = flightSearchForm.getValues().arr_iata;
-    if (!destinationAirport || !destinationAirport.trim()) {
+    if (!arrivalAirportInput || !arrivalAirportInput.trim()) {
       newErrors.arr_iata = "Destination airport is required";
     }
     
@@ -260,13 +258,13 @@ export function CreateRuleButton() {
       }
       
       // Add origin airport if available
-      const originAirport = flightSearchForm.getValues().dep_iata;
+      const originAirport = departureAirportInput;
       if (originAirport) {
         params.append('dep_iata', originAirport);
       }
       
       // Add destination airport if available
-      const destinationAirport = flightSearchForm.getValues().arr_iata;
+      const destinationAirport = arrivalAirportInput;
       if (destinationAirport) {
         params.append('arr_iata', destinationAirport);
       }
