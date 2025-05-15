@@ -16,13 +16,13 @@ class ApiCache {
   get<T>(key: string): T | null {
     const item = this.cache[key];
     if (!item) return null;
-    
+
     // Return null if item has expired
     if (Date.now() > item.expires) {
       delete this.cache[key];
       return null;
     }
-    
+
     return item.data as T;
   }
 
@@ -32,7 +32,7 @@ class ApiCache {
   set<T>(key: string, data: T, status?: string): void {
     // Set TTL based on flight status
     let ttl = 10 * 60 * 1000; // Default: 10 minutes
-    
+
     if (status) {
       switch (status) {
         case "active":
@@ -47,13 +47,13 @@ class ApiCache {
           break;
       }
     }
-    
+
     this.cache[key] = {
       data,
       expires: Date.now() + ttl
     };
   }
-  
+
   /**
    * Remove expired items from cache
    */
@@ -88,14 +88,14 @@ let uniqueIdCounter = 0;
 function calculateNextDayFromDateString(dateString: string): string {
   // Split the date string into year, month, and day
   const [year, month, day] = dateString.split('-').map(Number);
-  
+
   // Create a date object with explicit parts to avoid timezone issues
   // Month is 0-based in JavaScript, so subtract 1
   const date = new Date(Date.UTC(year, month - 1, day));
-  
+
   // Add one day to the date
   date.setUTCDate(date.getUTCDate() + 1);
-  
+
   // Format the date back to YYYY-MM-DD
   return `${date.toISOString()}`;
 }
@@ -103,7 +103,7 @@ function calculateNextDayFromDateString(dateString: string): string {
 // Flight search schema for validation
 export const flightSearchSchema = z.object({
   flight_iata: z.string().optional(),
-  airline_iata: z.string().optional(), 
+  airline_iata: z.string().optional(),
   dep_iata: z.string(),
   arr_iata: z.string(),
   flight_date: z.string().optional(),
@@ -129,28 +129,28 @@ export async function searchFlights(params: {
       console.warn("FlightAware AeroAPI key not found. Using fallback flight data.");
       return [];
     }
-    
+
     // Get date parameters - if no date provided, use today
     const searchDate = params.flight_date || new Date().toISOString().split('T')[0];
-    
+
     // Log the exact search date for debugging
     console.log(`Using search date: ${searchDate} for AeroAPI request`);
-    
+
     // Construct the schedules endpoint URL with end date one day after the start date
     // Calculate the end date (one day after search date)
     const endDateFormatted = calculateNextDayFromDateString(searchDate);
     let url = `${API_BASE_URL}/schedules/${searchDate}/${endDateFormatted}`;
-    
+
     console.log(`Search date range: ${searchDate} to ${endDateFormatted}`);
-    
+
     // Build query parameters
     const queryParams = new URLSearchParams();
-    
+
     // Save original flight_iata for exact matching later
     const originalFlightIata = params.flight_iata ? params.flight_iata.toUpperCase() : undefined;
-    
+
     // Set up search filters
-    if (params.flight_iata) { 
+    if (params.flight_iata) {
       // AeroAPI expects only the numeric part of the flight number
       // Extract the numeric part if it contains letters
       const flightMatch = params.flight_iata.match(/^[A-Z]{1,3}(\d+)$/i);
@@ -158,7 +158,7 @@ export async function searchFlights(params: {
         // If we have both airline code and flight number in flight_iata (e.g., "AA123")
         console.log(`Extracted flight number ${flightMatch[1]} from ${params.flight_iata}`);
         queryParams.append("flight_number", flightMatch[1]);
-        
+
         // If airline code is not explicitly provided, extract it from flight_iata
         if (!params.airline_iata) {
           const airlineCode = params.flight_iata.replace(/\d+$/, '');
@@ -172,29 +172,29 @@ export async function searchFlights(params: {
         queryParams.append("flight_number", params.flight_iata);
       }
     }
-  
-    
+
+
     if (params.airline_iata) {
       // If we only have airline code
       queryParams.append("airline", params.airline_iata);
     }
-    
+
     // Add origin/destination filters if provided
     if (params.dep_iata) {
       queryParams.append("origin", params.dep_iata);
     }
-    
+
     if (params.arr_iata) {
       queryParams.append("destination", params.arr_iata);
     }
-    
+
     // Add query parameters to URL if we have any
     if (queryParams.toString()) {
       url = `${url}?${queryParams.toString()}`;
     }
-    
+
     console.log(`Making AeroAPI request to: ${url}`);
-    
+
     // Make API request
     const response = await fetch(url, {
       method: 'GET',
@@ -203,24 +203,24 @@ export async function searchFlights(params: {
         'Accept': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`AeroAPI request failed with status ${response.status}: ${await response.text()}`);
     }
-    
+
     const data = await response.json();
-    
+
     // Check if we have schedule results
     if (!data.scheduled || !Array.isArray(data.scheduled) || data.scheduled.length === 0) {
       console.warn("No flight schedule results found");
       return [];
     }
-    
+
     // Transform AeroAPI response to our Flight type
-    let flights = data.scheduled.map((schedule: any) => 
+    let flights = data.scheduled.map((schedule: any) =>
       transformAeroApiResponseToFlight(schedule, params.flight_date)
     );
-    
+
     // Filter for exact flight number matches if flight_iata was provided
     if (originalFlightIata) {
       flights = flights.filter((flight: Flight) => {
@@ -230,7 +230,7 @@ export async function searchFlights(params: {
       });
       console.log(`Filtered to ${flights.length} exact matches for flight number ${originalFlightIata}`);
     }
-    
+
     console.log(`Found ${flights.length} flights matching search criteria`);
     return flights;
   } catch (error) {
@@ -258,21 +258,21 @@ function extractDateFromDateTime(dateTimeString: string): string {
 function transformAeroApiResponseToFlight(scheduleData: any, requestedDate?: string): Flight {
   // Generate a unique ID if fa_flight_id is not available
   const uniqueId = scheduleData.fa_flight_id || `generated-${++uniqueIdCounter}`;
-  
+
   // Extract IATA codes from ICAO if available
   const originIata = scheduleData.origin_iata || "";
   const destinationIata = scheduleData.destination_iata || "";
-  
+
   // Extract IATA flight number if available
   const flightIata = scheduleData.ident_iata || scheduleData.ident || "";
-  
+
   // Preserve the original date string directly to avoid timezone conversions
   const departureScheduled = scheduleData.scheduled_out || scheduleData.scheduled_departure || "";
   const arrivalScheduled = scheduleData.scheduled_in || scheduleData.scheduled_arrival || "";
-  
+
   // Determine the flight date - use the requested date if provided, otherwise extract from scheduled time
   const flightDateValue = requestedDate || extractDateFromDateTime(departureScheduled);
-  
+
   // Create the flight object
   return {
     id: uniqueId,
@@ -314,12 +314,12 @@ function transformAeroApiResponseToFlight(scheduleData: any, requestedDate?: str
       registration: scheduleData.aircraft_registration || "",
       type: scheduleData.aircraft_type || "",
     },
-    codeshared: scheduleData.codeshares?.length 
-      ? { 
+    codeshared: scheduleData.codeshares?.length
+      ? {
           airline_name: scheduleData.codeshares[0]?.airline || "",
-          airline_iata: scheduleData.codeshares[0]?.airline_iata || "", 
-          flight_number: scheduleData.codeshares[0]?.ident || "" 
-        } 
+          airline_iata: scheduleData.codeshares[0]?.airline_iata || "",
+          flight_number: scheduleData.codeshares[0]?.ident || ""
+        }
       : null,
     price: undefined, // Will be populated later if include_prices is true
   };
@@ -333,24 +333,24 @@ function transformAeroApiResponseToFlight(scheduleData: any, requestedDate?: str
  */
 export function getOptimalPollingInterval(flightData: Flight): { interval: number, stopTracking: boolean } {
   const status = flightData.flight_status.toLocaleLowerCase();
-  
+
   // Immediately stop tracking for completed flights
   if (status.includes('landed') || status.includes('arrived')) {
     return { interval: 0, stopTracking: true };
   }
-  
+
   // Time-based polling for all flights regardless of status
   const scheduledTime = new Date(flightData.departure?.scheduled || 0).getTime();
   const timeUntilDeparture = scheduledTime - Date.now();
-  
+
   // >24 hours: poll every 12 hours
   if (timeUntilDeparture > 24 * 60 * 60 * 1000) {
     return { interval: 12 * 60 * 60, stopTracking: false }; // 12 hours
-  } 
+  }
   // 12-24 hours: poll every 2 hours
   else if (timeUntilDeparture > 12 * 60 * 60 * 1000) {
     return { interval: 2 * 60 * 60, stopTracking: false }; // 2 hours
-  } 
+  }
   // <12 hours or in the past (for active flights): poll every 15 minutes
   else {
     return { interval: 15 * 60, stopTracking: false }; // 15 minutes
@@ -366,12 +366,12 @@ export function getOptimalPollingInterval(flightData: Flight): { interval: numbe
  * @returns Map of flight number to flight data
  */
 export async function batchFetchFlights(
-  flightNumbers: string[], 
+  flightNumbers: string[],
   defaultDepartureDate?: string,
   defaultArrivalDate?: string
 ): Promise<Record<string, any>> {
   const result: Record<string, any> = {};
-  
+
   // First, fetch all flight records from database to get departure and arrival times
   const dbFlights = await db.flight.findMany({
     where: {
@@ -380,47 +380,47 @@ export async function batchFetchFlights(
       }
     }
   });
-  
+
   // Create a map of flight numbers to their DB records for quick lookup
   const flightMap = new Map();
   dbFlights.forEach(flight => {
     flightMap.set(flight.flightNumber, flight);
   });
-  
+
   console.log(`Found ${dbFlights.length} flights in database out of ${flightNumbers.length} requested`);
-  
+
   // Process in batches to prevent rate limiting
   const batchSize = 5;
-  
+
   for (let i = 0; i < flightNumbers.length; i += batchSize) {
     const batch = flightNumbers.slice(i, i + batchSize);
-    
+
     // Process each flight in the batch
     const promises = batch.map(async (flightNumber) => {
       try {
         // Get flight info from database
         const dbFlight = flightMap.get(flightNumber);
-        
+
         // Extract departure and arrival dates from database record if available
         let flightDepartureDate: string | undefined = undefined;
         let flightArrivalDate: string | undefined = undefined;
-        
+
         if (dbFlight && dbFlight.departureTime) {
           flightDepartureDate = dbFlight.departureTime.toISOString();
           console.log(`Using departure date from DB for ${flightNumber}: ${flightDepartureDate}`);
         }
-        
+
         if (dbFlight && dbFlight.arrivalTime) {
           flightArrivalDate = dbFlight.arrivalTime.toISOString();
           console.log(`Using arrival date from DB for ${flightNumber}: ${flightArrivalDate}`);
         }
-        
+
         // Fall back to default dates if not found in database
         if (!flightDepartureDate) {
           flightDepartureDate = defaultDepartureDate;
           console.log(`No DB departure date for ${flightNumber}, using default: ${flightDepartureDate}`);
         }
-        
+
         if (!flightArrivalDate) {
           // If we have departure date but no arrival date, calculate the next day
           if (flightDepartureDate) {
@@ -431,10 +431,10 @@ export async function batchFetchFlights(
             console.log(`No DB arrival date for ${flightNumber}, using default: ${flightArrivalDate}`);
           }
         }
-        
+
         // Get detailed flight data with the dates from DB
-        const flightDetails = await getFlightDetails(flightNumber, flightDepartureDate!, flightArrivalDate!, dbFlight.departureAirport, dbFlight.arrivalAirport);
-        
+        const flightDetails = await fetchFlightStatus(flightNumber, flightDepartureDate!, flightArrivalDate!);
+
         if (flightDetails) {
           result[flightNumber] = flightDetails;
         }
@@ -442,15 +442,15 @@ export async function batchFetchFlights(
         console.error(`Error fetching flight ${flightNumber}:`, error);
       }
     });
-    
+
     await Promise.all(promises);
-    
+
     // If not the last batch, add a small delay to avoid rate limiting
     if (i + batchSize < flightNumbers.length) {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
-  
+
   return result;
 }
 
@@ -489,7 +489,7 @@ async function fetchFlightStatus(flightIdent: string, departureDate?: string, ar
       console.warn("FlightAware AeroAPI key not found. Cannot fetch flight status.");
       return null;
     }
-    
+
     // Extract the numeric part from IATA code if applicable
     let apiIdent = flightIdent;
     // Check if the identifier includes both airline code and flight number (e.g., "AA123")
@@ -499,19 +499,19 @@ async function fetchFlightStatus(flightIdent: string, departureDate?: string, ar
       // we could use just the numeric part: apiIdent = flightMatch[2];
       console.log(`Flight identifier ${flightIdent} contains airline code ${flightMatch[1]} and flight number ${flightMatch[2]}`);
     }
-    
+
     // Build the URL based on whether we're looking for current or historical flight
     let url = `${API_BASE_URL}/flights/${apiIdent}`;
-    
+
     // If dates are provided, add start_time and end_time query parameters
     // to get historical flight data for the specified date range
     if (departureDate && arrivalDate) {
       const queryParams = new URLSearchParams();
-      
+
       // Create start date from departureDate using the same approach that fixed the schedules endpoint
       // Use the exact departureDate with noon time to avoid timezone issues
       const startDate = new Date(`${departureDate}`);
-      
+
       // For end date, use arrivalDate if provided, otherwise use day after departureDate
       let endDate;
       if (arrivalDate) {
@@ -520,16 +520,16 @@ async function fetchFlightStatus(flightIdent: string, departureDate?: string, ar
         endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + 1);
       }
-      
+
       queryParams.append("start", departureDate);
       queryParams.append("end", arrivalDate);
       url = `${url}?${queryParams.toString()}`;
-      
+
       console.log(`Date range for flight lookup: ${departureDate} to ${arrivalDate}`);
     }
-    
+
     console.log(`Making AeroAPI request to flights endpoint: ${url}`);
-    
+
     // Make API request
     const response = await fetch(url, {
       method: 'GET',
@@ -538,12 +538,12 @@ async function fetchFlightStatus(flightIdent: string, departureDate?: string, ar
         'Accept': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       console.warn(`AeroAPI flights endpoint request failed with status ${response.status}: ${await response.text()}`);
       return null;
     }
-    
+
     const data = await response.json();
     const flightStatusData = data?.flights[0];
     const flight: Flight = {} as Flight;
@@ -592,27 +592,27 @@ function enhanceFlightWithStatusData(flight: Flight, flightStatusData: any, depa
     console.log("No flight status data available to enhance flight");
     return flight;
   }
-  
+
   const statusData = flightStatusData.flights[0];
   console.log(`Enhancing flight with status data: ${JSON.stringify(statusData.status || 'unknown')}`);
-  
+
   // Create a deep copy of the flight object to avoid mutations
-  const enhancedFlight: Flight = JSON.parse(JSON.stringify(flight));
-  
+  const enhancedFlight: Flight = flight;
+
   // Preserve the departure date explicitly if provided
   if (departureDateToUse) {
     enhancedFlight.flight_date = departureDateToUse;
     console.log(`Preserved flight date in enhanced flight: ${departureDateToUse}`);
   }
-  
+
   // Update flight status
   if (statusData.status) {
     console.log(`Setting flight status to: ${statusData.status}`);
     enhancedFlight.flight_status = statusData.status;
   }
-  
+
   // Update departure details
-  if (statusData.terminal_origin || statusData.gate_origin || statusData.departure_delay || 
+  if (statusData.terminal_origin || statusData.gate_origin || statusData.departure_delay ||
       statusData.actual_out || statusData.actual_off || statusData.estimated_off) {
     console.log(`Updating departure details`);
     enhancedFlight.departure = {
@@ -625,9 +625,9 @@ function enhanceFlightWithStatusData(flight: Flight, flightStatusData: any, depa
       estimated_runway: statusData.estimated_off || enhancedFlight.departure.estimated_runway,
     };
   }
-  
+
   // Update arrival details
-  if (statusData.terminal_destination || statusData.gate_destination || statusData.arrival_delay || 
+  if (statusData.terminal_destination || statusData.gate_destination || statusData.arrival_delay ||
       statusData.actual_in || statusData.actual_on || statusData.estimated_on) {
     console.log(`Updating arrival details`);
     enhancedFlight.arrival = {
@@ -640,7 +640,7 @@ function enhanceFlightWithStatusData(flight: Flight, flightStatusData: any, depa
       estimated_runway: statusData.estimated_on || enhancedFlight.arrival.estimated_runway,
     };
   }
-  
+
   // Update aircraft details if available
   if (statusData.aircraft_type) {
     console.log(`Updating aircraft details`);
@@ -650,7 +650,7 @@ function enhanceFlightWithStatusData(flight: Flight, flightStatusData: any, depa
       type: statusData.aircraft_type || enhancedFlight.aircraft?.type,
     };
   }
-  
+
   // Add live tracking data if available
   if (statusData.last_position) {
     console.log(`Adding live tracking data`);
@@ -665,7 +665,7 @@ function enhanceFlightWithStatusData(flight: Flight, flightStatusData: any, depa
       is_ground: statusData.last_position.is_ground || false,
     };
   }
-  
+
   console.log(`Enhanced flight with status: ${enhancedFlight.flight_status}`);
   return enhancedFlight;
 }
@@ -682,11 +682,11 @@ export async function getFlightDetails(flightNumber: string, departureDate: stri
     console.log("Departure Date: ", departureDate, ", Arrival Date: ", arrivalDate)
     // Store original flight number for exact matching
     const originalFlightNumber = flightNumber.toUpperCase();
-    
+
     // Extract numeric part from IATA code if applicable
     let searchFlightNumber = flightNumber;
     let searchAirlineCode: string | undefined = undefined;
-    
+
     // Check if the identifier includes both airline code and flight number (e.g., "AA123")
     const flightMatch = flightNumber.match(/^([A-Z]{2,3})(\d+)$/i);
     if (flightMatch) {
@@ -696,10 +696,46 @@ export async function getFlightDetails(flightNumber: string, departureDate: stri
       searchAirlineCode = flightMatch[1];
       console.log(`Extracted flight number ${searchFlightNumber} and airline code ${searchAirlineCode} from ${flightNumber}`);
     }
-    
+
     // Fetch detailed status from the flights endpoint
-    return fetchFlightStatus(flightNumber, departureDate, arrivalDate);
-  
+    // Use the searchFlights function with the extracted flight number and airline code
+    const searchDate = departureDate?.split('T')[0] || new Date().toISOString().split('T')[0];
+    const flights = await searchFlights({
+      flight_iata: flightNumber, // Pass the full flight number to leverage exact matching in searchFlights
+      flight_date: searchDate,
+      dep_iata: departureAirport,
+      arr_iata: arrivalAirport
+    });
+
+    // If no flights found from schedules endpoint, return null
+    if (!flights || flights.length === 0) {
+      return null;
+    }
+
+    // Filter for exact match (should already be filtered by searchFlights)
+    const exactMatchFlight = flights.find(flight =>
+        flight.flight.iata.toUpperCase() === originalFlightNumber
+    );
+
+    if (!exactMatchFlight) {
+      console.log(`No exact match found for flight number ${originalFlightNumber}`);
+      return null;
+    }
+
+    // Get the basic flight information
+    const basicFlight = exactMatchFlight;
+
+    // Fetch detailed status from the flights endpoint
+    const statusData = await fetchFlightStatus(flightNumber, departureDate, arrivalDate);
+
+    // Enhance the flight with detailed status data if available
+    if (statusData) {
+      return enhanceFlightWithStatusData(basicFlight, statusData, departureDate);
+    }
+
+    // Return the basic flight data if status data is not available
+    return basicFlight;
+
   } catch (error) {
     console.error("Error getting flight details:", error);
     return null;
