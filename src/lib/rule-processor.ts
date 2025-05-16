@@ -422,7 +422,7 @@ function detectChanges(trackedFlight: any, latestFlightInfo: Flight): any[] {
   // Check for departure time change
   if (latestFlightInfo.departure.estimated && trackedFlight.departureTime) {
     const currentTime = new Date(trackedFlight.departureTime).getTime();
-    const newDepartureTime = new Date(latestFlightInfo.departure.scheduled).getTime();
+    const newDepartureTime = new Date(latestFlightInfo.departure.estimated).getTime();
 
     // Calculate difference in minutes
     const diffMinutes = Math.round((newDepartureTime - currentTime) / (60 * 1000));
