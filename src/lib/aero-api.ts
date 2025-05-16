@@ -564,14 +564,18 @@ async function fetchFlightStatus(flightIdent: string, departureDate?: string, ar
       icao: flightStatusData.origin.code_icao,
       airport: flightStatusData.origin.name,
       timezone: flightStatusData.origin.timezone,
-      scheduled: flightStatusData.scheduled_out
+      scheduled: flightStatusData.scheduled_out,
+      estimated: flightStatusData.estimated_out,
+      actual: flightStatusData.actual_out
     };
     flight.arrival = {
       iata: flightStatusData.destination.code_iata,
       icao: flightStatusData.destination.code_icao,
       airport: flightStatusData.destination.name,
       timezone: flightStatusData.destination.timezone,
-      scheduled: flightStatusData.scheduled_in
+      scheduled: flightStatusData.scheduled_in,
+      estimated: flightStatusData.estimated_in,
+      actual: flightStatusData.actual_in
     }
     return enhanceFlightWithStatusData(flight, data, departureDate);
   } catch (error) {
