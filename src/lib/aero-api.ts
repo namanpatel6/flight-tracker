@@ -351,9 +351,9 @@ export function getOptimalPollingInterval(flightData: Flight): { interval: numbe
   else if (timeUntilDeparture > 12 * 60 * 60 * 1000) {
     return { interval: 2 * 60 * 60, stopTracking: false }; // 2 hours
   }
-  // <12 hours or in the past (for active flights): poll every 15 minutes
+  // <12 hours or in the past (for active flights): poll every 5 minutes
   else {
-    return { interval: 15 * 60, stopTracking: false }; // 15 minutes
+    return { interval: 5 * 60, stopTracking: false }; // 5 minutes
   }
 }
 

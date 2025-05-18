@@ -22,10 +22,10 @@ const IS_BUILD_PROCESS = process.env.NODE_ENV === 'production' && process.env.NE
 
 /**
  * Start the optimized tiered polling service
- * 
+ *
  * Polling is based solely on the time until departure:
- * - Near-term flights (< 12 hours): poll every 15 minutes
- * - Mid-term flights (12-24 hours away): poll every 2 hours 
+ * - Near-term flights (< 12 hours): poll every 5 minutes
+ * - Mid-term flights (12-24 hours away): poll every 2 hours
  * - Long-term flights (> 24 hours away): poll every 12 hours
  */
 export function startOptimizedPolling(): void {
@@ -35,15 +35,15 @@ export function startOptimizedPolling(): void {
   }
 
   console.log("Starting optimized tiered polling service");
-  
-  // Near-term flights (within 12 hours) - poll every 15 minutes
+
+  // Near-term flights (within 12 hours) - poll every 5 minutes
   nearTermInterval = setInterval(() => {
     processTrackedFlightsWithAlerts('near-term').catch(error => {
       console.error("Error in near-term flight processing:", error);
     });
-  }, 15 * 60 * 1000); // 15 minutes
+  }, 5 * 60 * 1000); // 5 minutes
   nearTermPollingEnabled = true;
-  
+
   // Mid-term flights (12-24 hours away) - poll every 2 hours
   midTermInterval = setInterval(() => {
     processTrackedFlightsWithAlerts('mid-term').catch(error => {
@@ -51,7 +51,7 @@ export function startOptimizedPolling(): void {
     });
   }, 2 * 60 * 60 * 1000); // 2 hours (changed from 1 hour)
   midTermPollingEnabled = true;
-  
+
   // Long-term flights (>24 hours away) - poll every 12 hours
   longTermInterval = setInterval(() => {
     processTrackedFlightsWithAlerts('long-term').catch(error => {
@@ -59,7 +59,7 @@ export function startOptimizedPolling(): void {
     });
   }, 12 * 60 * 60 * 1000); // 12 hours (changed from 6 hours)
   longTermPollingEnabled = true;
-  
+
   // Also process rules on a regular basis
   startRulesPolling(30); // Process rules every 30 minutes
 }
@@ -73,19 +73,19 @@ export function stopOptimizedPolling(): void {
     nearTermInterval = null;
     nearTermPollingEnabled = false;
   }
-  
+
   if (midTermInterval) {
     clearInterval(midTermInterval);
     midTermInterval = null;
     midTermPollingEnabled = false;
   }
-  
+
   if (longTermInterval) {
     clearInterval(longTermInterval);
     longTermInterval = null;
     longTermPollingEnabled = false;
   }
-  
+
   console.log("Stopped optimized tiered polling service");
 }
 
@@ -107,19 +107,19 @@ export function startRulesPolling(intervalMinutes: number = 10): void {
   }
 
   console.log(`Starting rules polling service (interval: ${intervalMinutes} minutes)`);
-  
+
   // Process rules immediately once
   processRules().catch(error => {
     console.error("Error in initial rules processing:", error);
   });
-  
+
   // Then start periodic processing
   rulesPollingInterval = setInterval(() => {
     processRules().catch(error => {
       console.error("Error in rules processing:", error);
     });
   }, intervalMinutes * 60 * 1000); // Convert minutes to milliseconds
-  
+
   rulesPollingEnabled = true;
 }
 
@@ -155,17 +155,17 @@ export function initializeServices(options: {
     enableRulesPolling = false,
     rulesPollingIntervalMinutes = 10
   } = options;
-  
+
   // Skip polling during build process
   if (IS_BUILD_PROCESS) {
     console.log("Skipping service initialization during build process");
     return;
   }
-  
+
   // Start rules polling if enabled
   if (enableRulesPolling) {
     startRulesPolling(rulesPollingIntervalMinutes);
   }
-  
+
   console.log("Services initialized with options:", options);
-} 
+}
