@@ -343,15 +343,19 @@ export function getOptimalPollingInterval(flightData: Flight): { interval: numbe
   const scheduledTime = new Date(flightData.departure?.scheduled || 0).getTime();
   const timeUntilDeparture = scheduledTime - Date.now();
 
-  // >24 hours: poll every 12 hours
-  if (timeUntilDeparture > 24 * 60 * 60 * 1000) {
+  // >= 72 hours: poll every 24 hours
+  if(timeUntilDeparture >= 72 * 60 * 60 * 1000) {
+    return { interval: 24 * 60 * 60, stopTracking: false }; // 24 hours
+  }
+  // >= 48 hours and <= 72 hours: poll every 12 hours
+  if (timeUntilDeparture >= 48 * 60 * 60 * 1000 && timeUntilDeparture < 72 * 60 * 60 * 1000) {
     return { interval: 12 * 60 * 60, stopTracking: false }; // 12 hours
   }
-  // 12-24 hours: poll every 2 hours
-  else if (timeUntilDeparture > 12 * 60 * 60 * 1000) {
+  // 6-48 hours: poll every 2 hours
+  else if (timeUntilDeparture > 6 * 60 * 60 * 1000) {
     return { interval: 2 * 60 * 60, stopTracking: false }; // 2 hours
   }
-  // <12 hours or in the past (for active flights): poll every 5 minutes
+  // <6 hours or in the past (for active flights): poll every 5 minutes
   else {
     return { interval: 5 * 60, stopTracking: false }; // 5 minutes
   }
