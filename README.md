@@ -16,9 +16,11 @@ A modern flight tracking application that allows users to track flights between 
 - **Frontend**: Next.js 14, React, TypeScript
 - **UI Components**: Shadcn UI, Tailwind CSS
 - **Backend**: Node.js
-- **Authentication**: NextAuth.js with Google and GitHub OAuth
-- **API**: AviationStack for real-time flight data
-- **Email Notifications**: Nodemailer with Ethereal for development
+- **Database**: PostgreSQL, Prisma ORM
+- **Authentication**: NextAuth.js with Google OAuth
+- **API**: FlightAware AeroAPI for real-time flight data
+- **Email Notifications**: Nodemailer for email delivery
+- **Background Processing**: QStash for scheduled tasks
 
 ## Getting Started
 
@@ -26,8 +28,9 @@ A modern flight tracking application that allows users to track flights between 
 
 - Node.js 18.17 or later
 - npm or yarn
-- AviationStack API key (get one at [aviationstack.com](https://aviationstack.com/))
+- FlightAware AeroAPI key (get one at [flightaware.com/aeroapi](https://flightaware.com/aeroapi/))
 - PostgreSQL database
+- Upstash QStash account (for scheduled tasks)
 
 ### Installation
 
@@ -44,8 +47,8 @@ npm install
 
 3. Create a `.env.local` file in the root directory and add necessary environment variables:
 ```env
-# AviationStack API Key
-NEXT_PUBLIC_AVIATIONSTACK_API_KEY=your_api_key_here
+# FlightAware AeroAPI Key
+FLIGHTAWARE_AERO_API_KEY=your_flightaware_aero_api_key_here
 
 # NextAuth.js Secret
 # Generate with: node -e "console.log(crypto.randomBytes(32).toString('hex'))"
@@ -55,22 +58,18 @@ NEXTAUTH_URL=http://localhost:3000
 # OAuth Providers
 GOOGLE_CLIENT_ID=your_google_client_id_here
 GOOGLE_CLIENT_SECRET=your_google_client_secret_here
-GITHUB_ID=your_github_id_here
-GITHUB_SECRET=your_github_secret_here
 
 # Database
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/flight_tracker"
 
-# Email Configuration (for production)
-EMAIL_HOST="smtp.example.com"
-EMAIL_PORT="587"
-EMAIL_SECURE="false"
-EMAIL_USER="user@example.com"
-EMAIL_PASSWORD="your-email-password"
-EMAIL_FROM="Flight Tracker <notifications@flight-tracker.com>"
+# QStash Configuration
+QSTASH_TOKEN=your_qstash_token
+QSTASH_CURRENT_SIGNING_KEY=your_qstash_current_signing_key
+QSTASH_NEXT_SIGNING_KEY=your_qstash_next_signing_key
+ADMIN_API_KEY=your_admin_api_key_for_secure_endpoints
 
-# Cron Job API Key
-CRON_API_KEY="your-cron-api-key"
+# Application URL
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 4. Generate a secure NEXTAUTH_SECRET:
@@ -109,23 +108,22 @@ The project follows a modern Next.js application structure:
 
 ## API Integration
 
-This project uses the AviationStack API to fetch real-time flight data. To use the API:
+This project uses the FlightAware AeroAPI to fetch real-time flight data. To use the API:
 
-1. Sign up for a free account at [aviationstack.com](https://aviationstack.com/)
+1. Sign up for an account at [flightaware.com/aeroapi](https://flightaware.com/aeroapi/)
 2. Get your API key from the dashboard
-3. Add your API key to the `.env.local` file
+3. Add your API key to the `.env.local` file as `FLIGHTAWARE_AERO_API_KEY`
 
-Note: The free tier of AviationStack has limitations on the number of requests and does not include HTTPS access. For production use, consider upgrading to a paid plan.
+Note: AeroAPI offers different pricing tiers based on the number of requests and features needed. Review their pricing page for more details.
 
 ## Authentication
 
 The application uses NextAuth.js for authentication with the following providers:
 
 - Google OAuth
-- GitHub OAuth
 - Email/Password (credentials)
 
-To set up OAuth providers, you'll need to create OAuth applications in the respective developer consoles and add the client IDs and secrets to your `.env.local` file.
+To set up Google OAuth, you'll need to create an OAuth application in the Google Developer Console and add the client ID and secret to your `.env.local` file.
 
 ### About NEXTAUTH_SECRET
 
@@ -138,16 +136,29 @@ Always use a strong, randomly generated secret and never commit it to your repos
 
 ## Email Notification System
 
-The Flight Tracker application includes an email notification system that sends alerts to users about changes to their tracked flights. For detailed information, see [EMAIL_NOTIFICATIONS.md](./EMAIL_NOTIFICATIONS.md).
+The Flight Tracker application includes an email notification system that sends alerts to users about changes to their tracked flights.
 
 ### Key Features
 
 - **Real-time Alerts**: Receive email notifications for flight status changes, delays, gate changes, departures, and arrivals.
-- **Automated Updates**: A cron job periodically checks for flight updates and sends notifications when changes are detected.
-- **Development Mode**: Uses Ethereal Email for testing without sending real emails.
+- **Automated Updates**: The system periodically checks for flight updates and sends notifications when changes are detected.
 - **Production Ready**: Can be configured to use any SMTP service for production.
 
-For more details about the email notification system, including configuration, implementation details, and troubleshooting, see [EMAIL_NOTIFICATIONS.md](./EMAIL_NOTIFICATIONS.md).
+## QStash Integration
+
+The application uses Upstash QStash for reliable background processing and scheduled tasks. For detailed information, see [QStash-README.md](./QStash-README.md).
+
+### Key Features
+
+- **Scheduled Rule Processing**: QStash handles periodic execution of flight tracking rules.
+- **Reliable Background Jobs**: Ensures critical tasks run even during deployment or server restarts.
+- **Webhook Integration**: Processes incoming webhooks from QStash to trigger rule evaluation.
+
+To set up QStash:
+1. Create an Upstash account and set up QStash
+2. Add your QStash credentials to the `.env.local` file
+3. Deploy your application
+4. Configure QStash schedules using the admin API endpoint
 
 ## Development
 
@@ -156,9 +167,6 @@ For more details about the email notification system, including configuration, i
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 - `npm run format` - Format code with Prettier
-- `npm run test:email` - Test email notification functionality
-- `npm run trigger:cron` - Manually trigger the flight update cron job
-- `npm run test:rules` - Test the rules system functionality
 
 ## License
 
